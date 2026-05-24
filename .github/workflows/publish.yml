@@ -1,0 +1,108 @@
+name: Publish to npm
+
+# Triggered manually from the GitHub Actions UI.
+# Run this AFTER bumping the version in package.json and merging to master.
+#
+# Prerequisites (one-time setup):
+#   1. Generate an npm automation token at https://www.npmjs.com/settings/<user>/tokens
+#      (type: "Automation" — bypasses 2FA for CI)
+#   2. Add it as a repository secret named NPM_TOKEN:
+#      GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+#
+# What this workflow does:
+#   · Reads the version from package.json  (e.g. "1.2.0")
+#   · Fails immediately if tag v1.2.0 already exists   (prevents duplicate publishes)
+#   · Runs the full test suite
+#   · Builds the minified bundle  (dist/lnchat.js)
+#   · Creates tag v1.2.0 and a GitHub release via the API
+#     → tag appears as "Verified" and "Published by github-actions[bot]" on GitHub
+#   · Publishes to npm with provenance attestation
+#     → package page shows "Signed via GitHub Actions" verification badge on npm
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    # Guard: only allow manual trigger from master
+    if: github.ref == 'refs/heads/master'
+
+    permissions:
+      contents: write   # create releases and tags
+      id-token: write   # npm provenance attestation (OIDC)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so --generate-notes sees all commits
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Read version ───────────────────────────────────────────────────────
+      - name: Read version from package.json
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+          echo "Publishing $VERSION"
+
+      # ── Safety check ───────────────────────────────────────────────────────
+      - name: Fail if tag already exists
+        run: |
+          TAG="${{ steps.pkg.outputs.tag }}"
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG$"; then
+            echo "::error::Tag $TAG already exists on origin."
+            echo "::error::Bump the version in package.json before publishing."
+            exit 1
+          fi
+
+      # ── Quality gates ──────────────────────────────────────────────────────
+      - name: Syntax check
+        run: find src tests -name '*.js' -exec node --check {} \;
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Run tests
+        run: npm test
+
+      # ── Build ──────────────────────────────────────────────────────────────
+      - name: Build bundle
+        run: npm run build
+
+      # ── GitHub release ─────────────────────────────────────────────────────
+      # gh release create uses the GitHub API → tag is created server-side and
+      # shows as "Verified / Published by github-actions[bot]" on GitHub.
+      # --generate-notes produces a "What's Changed" list from commits since
+      # the previous tag.
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.pkg.outputs.tag }}" \
+            --title "${{ steps.pkg.outputs.tag }}" \
+            --generate-notes \
+            --target master
+
+      # ── npm publish ────────────────────────────────────────────────────────
+      # --provenance: attaches a signed SLSA provenance attestation linking the
+      #   npm package to this exact Actions run + commit.  Shows as
+      #   "Signed via GitHub Actions" on the npmjs.com package page.
+      # --ignore-scripts: skips prepublishOnly (we already ran build + tests).
+      - name: Publish to npm
+        run: npm publish --provenance --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

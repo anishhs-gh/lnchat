@@ -1,0 +1,18 @@
+# The "files" field in package.json is the primary allowlist:
+#   dist/   README.md   package.json   LICENSE
+# Everything else is excluded automatically. This file makes that
+# intent explicit and guards against accidental future additions.
+
+# Source and tests — compiled output in dist/ is what ships
+src/
+tests/
+
+# Dev tooling and config
+.github/
+node_modules/
+.gitignore
+
+# Development notes (not user-facing)
+NOTES.md
+PLANNING.md
+CONTRIBUTING.md

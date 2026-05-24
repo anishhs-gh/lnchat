@@ -1,0 +1,31 @@
+LnChat License
+
+Copyright (c) 2025 anishhs-gh (https://github.com/anishhs-gh)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to:
+
+  · Use and run the Software for any personal, educational, or commercial purpose
+  · Study, modify, and make derivative works of the Software
+  · Contribute code back to the original repository via pull requests
+  · Redistribute the Software in original or modified form, provided that this
+    licence notice and all copyright notices are retained in full
+
+The following are NOT permitted without prior written permission from the
+copyright holder:
+
+  · Publishing, distributing, or making available any package, library, or
+    application on npm (npmjs.com) or any other public package registry that
+    is derived from, substantially similar to, or competes with the Software
+  · Offering the Software, or any substantially similar product, as a hosted
+    service, SaaS product, or competing tool under any name or brand
+  · Removing or replacing the "lnchat" name or associated copyright notices
+    in any public redistribution
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,0 +1,49 @@
+{
+  "name": "lnchat",
+  "version": "1.0.0",
+  "description": "Zero-config terminal messenger for LAN networks",
+  "main": "dist/lnchat.js",
+  "bin": {
+    "lnchat": "./dist/lnchat.js"
+  },
+  "author": {
+    "name": "Anish Shekh",
+    "url": "https://github.com/anishhs-gh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anishhs-gh/lnchat.git"
+  },
+  "homepage": "https://github.com/anishhs-gh/lnchat#readme",
+  "bugs": {
+    "url": "https://github.com/anishhs-gh/lnchat/issues"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "keywords": [
+    "lan",
+    "chat",
+    "terminal",
+    "cli",
+    "p2p",
+    "messenger",
+    "network",
+    "local"
+  ],
+  "scripts": {
+    "start": "node src/index.js",
+    "lint": "find src tests -name '*.js' -exec node --check {} \\;",
+    "test": "node --test tests/*.test.js",
+    "build": "esbuild src/index.js --bundle --platform=node --minify --banner:js='#!/usr/bin/env node' --outfile=dist/lnchat.js && chmod +x dist/lnchat.js",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

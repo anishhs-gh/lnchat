@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    name: Node ${{ matrix.node }} — Ubuntu
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Lint ──────────────────────────────────────────────────────────────
+      # Node's built-in --check validates JavaScript syntax without any extra
+      # packages. This catches parse errors in every source and test file.
+      - name: Syntax check
+        run: find src tests -name '*.js' -exec node --check {} \;
+
+      # ── Security audit ────────────────────────────────────────────────────
+      # Fails the build on any HIGH or CRITICAL vulnerability.
+      # lnchat has zero production dependencies, so this guards devDeps only.
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      # ── Tests ─────────────────────────────────────────────────────────────
+      - name: Run tests
+        run: npm test
