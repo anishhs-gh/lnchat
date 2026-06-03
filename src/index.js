@@ -15,7 +15,7 @@ const MessageHistory = require('./utils/messageHistory');
 const { getLocalIPs } = require('./utils/network');
 const { notify }  = require('./utils/notify');
 const logger      = require('./utils/logger');
-const { checkNpmStatus, printBanner } = require('./utils/banner');
+const { checkNpmStatus, printBanner, printVersionStatus } = require('./utils/banner');
 const currentVersion = require('./utils/version');
 
 const PREFERRED_TCP_PORT = 9000;
@@ -61,7 +61,7 @@ async function main() {
 
   // ── Profile management commands (print and exit, no UI needed) ────────────
   if (showVersion) {
-    console.log(`lnchat v${currentVersion}`);
+    await printVersionStatus(currentVersion);
     process.exit(0);
   }
 

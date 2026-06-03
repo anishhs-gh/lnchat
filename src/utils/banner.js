@@ -121,4 +121,28 @@ async function printBanner(ui, currentVersion, npmStatus) {
   ui.printRaw('');
 }
 
-module.exports = { checkNpmStatus, printBanner };
+// Prints "lnchat vX.Y.Z" then fetches npm status and appends the same
+// deprecation / update notice used in the startup banner.
+// Intended for the --version / -v flag — no UI object needed, writes directly
+// to stdout.  Waits up to 3 seconds for the registry (the full timeout, since
+// there is no prior in-flight request to piggyback on).
+async function printVersionStatus(currentVersion) {
+  process.stdout.write(`lnchat v${currentVersion}\n`);
+  const { latest, deprecated } = await checkNpmStatus(currentVersion);
+  if (deprecated) {
+    const msg = deprecated.length > 80 ? deprecated.slice(0, 79) + '…' : deprecated;
+    process.stdout.write(
+      `\n  \x1b[31m\x1b[1m⛔  v${currentVersion} is deprecated:\x1b[0m \x1b[31m${msg}\x1b[0m` +
+      `\n  \x1b[2mUpdate now:  npm install -g lnchat\x1b[0m` +
+      `\n  \x1b[2m      or:   npx lnchat@latest\x1b[0m\n`
+    );
+  } else if (latest && isNewer(latest, currentVersion)) {
+    process.stdout.write(
+      `\n  \x1b[33m⬆  Update available:\x1b[0m v${currentVersion} \x1b[2m→\x1b[0m \x1b[32m\x1b[1mv${latest}\x1b[0m` +
+      `\n  \x1b[2mTo update:  npm install -g lnchat\x1b[0m` +
+      `\n  \x1b[2m      or:   npx lnchat@latest\x1b[0m\n`
+    );
+  }
+}
+
+module.exports = { checkNpmStatus, printBanner, printVersionStatus };

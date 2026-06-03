@@ -43,6 +43,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Input syntax highlighting no longer duplicates the command line when the prompt + typed text exceeds the terminal width (`_repaintInput` now skips repainting for wrapping lines)
 - Linux: `notify-send` errors are silently swallowed; a one-liner warning is printed at most once per session if the notification daemon is unreachable
 - `--port <n>`: warns when the requested port is taken and the server falls back to an OS-assigned port
+- `--version` / `-v` now fetches npm status and shows the same update-available or deprecation notice as the startup banner
 
 ### Changed
 - LICENSE title corrected to `lnchat Source-Available License`; copyright updated to 2025–2026
