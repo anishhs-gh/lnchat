@@ -1,6 +1,6 @@
 {
   "name": "lnchat",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Zero-config terminal messenger for LAN networks",
   "main": "dist/lnchat.js",
   "bin": {
@@ -42,7 +42,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "lnchat-SAL-1.0",
   "devDependencies": {
     "esbuild": "^0.25.0"
   }

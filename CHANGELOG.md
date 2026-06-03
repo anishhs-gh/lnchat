@@ -8,12 +8,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [2.0.0] — 2026-06-03
+
 ### Added
 
 #### File transfer
 - `/share <name> <file>` — offer a file to a named peer with SHA-256 integrity verification
 - `/share <file>` — focus-mode shorthand; peer name is inferred from the focused target
-- `/share all <file>` — broadcast a file offer to all online peers with a 10-second acceptance window
+- `/share all <file>` — broadcast a file offer to all online peers with a 15-second acceptance window
 - `/accept [id]` — accept an incoming file offer; `id` optional when only one offer is pending
 - `/reject [id]` — decline an incoming offer
 - `/cancel [id]` — abort an active outgoing or incoming transfer
@@ -24,9 +28,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Transfer integrity check on completion — corrupt or truncated files are deleted and the sender is notified
 - Graceful peer-offline handling: active transfers are cancelled with a notice when the remote peer disconnects
 - All data connections use a dedicated TLS stream (same cert/key as messaging)
+- File transfer event messages show a `[HH:MM]` timestamp (offer sent/received, accepted, completed, integrity failure, broadcast events)
+
+#### Cross-platform
+- **Windows support** — TLS cert and key generation now uses Node's built-in `crypto` module (pure DER/ASN.1); `openssl` is no longer required on any platform
+- **`--port <n>`** — bind the TCP server to a specific port; warns if the port is taken and falls back to OS-assigned
+- Sequential port fallback: tries 9000–9009 in order before OS-assigned, so multi-profile setups on the same machine (e.g. GCP Cloud Shell) land on predictable, firewallable ports
+- macOS: one-time notification permission hint shown on first run (System Settings → Notifications → Terminal); suppressed once acknowledged
+
+#### Spaces
+- **Space passphrase protection** — `--space` prompts for an optional passphrase at startup (asterisk-masked, never stored to disk); the passphrase is combined with the space name via PBKDF2-SHA256 (50 000 iterations) to derive an opaque token broadcast in HELLO packets; only peers with the same name and passphrase can discover each other; peers with no passphrase, the wrong passphrase, or an older client land in silently-isolated groups
 
 ### Fixed
 - Input syntax highlighting no longer duplicates the command line when the prompt + typed text exceeds the terminal width (`_repaintInput` now skips repainting for wrapping lines)
+- Linux: `notify-send` errors are silently swallowed; a one-liner warning is printed at most once per session if the notification daemon is unreachable
+- `--port <n>`: warns when the requested port is taken and the server falls back to an OS-assigned port
+
+### Changed
+- LICENSE title corrected to `lnchat Source-Available License`; copyright updated to 2025–2026
+- `package.json` license field changed to `lnchat-SAL-1.0` for a readable display on the npm registry
 
 ---
 
@@ -93,9 +113,10 @@ First public release.
 #### Developer tooling
 - CI workflow — syntax check, security audit, tests on Node 18 / 20 / 22
 - Publish workflow — manual trigger, auto-creates signed GitHub release + npm publish with provenance
-- 103 tests using Node's built-in `node:test` (zero extra test dependencies)
+- 136 tests using Node's built-in `node:test` (zero extra test dependencies)
 
 ---
 
-[Unreleased]: https://github.com/anishhs-gh/lnchat/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/anishhs-gh/lnchat/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/anishhs-gh/lnchat/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/anishhs-gh/lnchat/releases/tag/v1.0.0

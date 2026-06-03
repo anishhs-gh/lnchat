@@ -7,32 +7,35 @@ function escapeAS(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-// Send a native desktop notification — detached, non-blocking, silent on error.
+// Send a native desktop notification. onFail() is called once if the command
+// is unavailable or exits non-zero — lets the caller show a one-time warning.
+// All errors are swallowed; a broken notification path never affects the main app.
 //
-// Platform support:
-//   macOS  — uses osascript (always present, no install needed)
-//   Linux  — uses notify-send (libnotify); silently does nothing if not installed
-//   other  — no-op (the terminal bell fired by the caller is the only signal)
-//
-// Notifications are best-effort: any spawn error or missing binary is caught
-// and swallowed so a broken notification path never affects the main app.
-function notify(title, body) {
+//   macOS  — osascript (always present)
+//   Linux  — notify-send (libnotify); calls onFail if missing or daemon not running
+//   other  — no-op (terminal bell fired by caller is the only signal)
+function notify(title, body, onFail) {
   try {
     if (process.platform === 'darwin') {
-      spawn(
+      const child = spawn(
         'osascript',
         ['-e', `display notification "${escapeAS(body)}" with title "${escapeAS(title)}"`],
-        { detached: true, stdio: 'ignore' }
-      ).unref();
+        { stdio: 'ignore' }
+      );
+      child.on('error', () => { if (onFail) onFail(); });
+      child.on('close', (code) => { if (code !== 0 && onFail) onFail(); });
+      child.unref();
 
     } else if (process.platform === 'linux') {
-      spawn(
+      const child = spawn(
         'notify-send',
         ['--app-name=lnchat', '--expire-time=4000', title, body],
-        { detached: true, stdio: 'ignore' }
-      ).unref();
+        { stdio: 'ignore' }
+      );
+      child.on('error', () => { if (onFail) onFail(); });
+      child.on('close', (code) => { if (code !== 0 && onFail) onFail(); });
+      child.unref();
     }
-    // Windows / other: terminal bell (sent separately in index.js) is the fallback.
   } catch (_) {}
 }
 

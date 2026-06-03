@@ -4,7 +4,7 @@ const fs     = require('fs');
 const path   = require('path');
 const os     = require('os');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { generateSelfSignedCert } = require('./tlsCert');
 
 const LNCHAT_DIR  = path.join(os.homedir(), '.lnchat');
 const PROFILES_DIR = path.join(LNCHAT_DIR, 'profiles');
@@ -48,32 +48,15 @@ function loadSigningKeys(name) {
   };
 }
 
-// Generate a self-signed RSA-2048 TLS cert+key via the system openssl.
+// Generate a self-signed RSA-2048 TLS cert+key using Node's built-in crypto.
 // Cert and key are saved as <name>-cert.pem / <name>-key.pem in PROFILES_DIR
 // and returned as PEM strings.  This runs once per profile creation.
 function generateTlsCreds(name) {
   fs.mkdirSync(PROFILES_DIR, { recursive: true });
-  const certPath = path.join(PROFILES_DIR, `${name}-cert.pem`);
-  const keyPath  = path.join(PROFILES_DIR, `${name}-key.pem`);
-
-  try {
-    execSync(
-      `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" ` +
-      `-days 3650 -nodes -subj "/CN=lnchat" 2>/dev/null`,
-      { stdio: 'pipe' }
-    );
-  } catch (_) {
-    throw new Error(
-      'Could not generate TLS credentials — is openssl installed?\n' +
-      '  macOS: ships with LibreSSL (built-in)\n' +
-      '  Linux: sudo apt install openssl  or  sudo dnf install openssl'
-    );
-  }
-
-  return {
-    cert: fs.readFileSync(certPath, 'utf8'),
-    key:  fs.readFileSync(keyPath,  'utf8'),
-  };
+  const { cert, key } = generateSelfSignedCert();
+  fs.writeFileSync(path.join(PROFILES_DIR, `${name}-cert.pem`), cert, 'utf8');
+  fs.writeFileSync(path.join(PROFILES_DIR, `${name}-key.pem`),  key,  'utf8');
+  return { cert, key };
 }
 
 // Load previously generated TLS creds for a profile, or null if missing.
@@ -116,13 +99,14 @@ async function resolveProfile(name, forceNew, ui) {
     const creds   = loadTlsCreds(name)    || generateTlsCreds(name);
     const signing = loadSigningKeys(name) || generateSigningKeys(name);
     return {
-      deviceId:      saved.deviceId,
-      nickname:      saved.nickname,
-      discriminator: discriminatorFor(saved.deviceId),
-      cert:          creds.cert,
-      key:           creds.key,
-      signingKey:    signing.privateKey,
-      downloadsDir:  saved.downloadsDir || null,
+      deviceId:               saved.deviceId,
+      nickname:               saved.nickname,
+      discriminator:          discriminatorFor(saved.deviceId),
+      cert:                   creds.cert,
+      key:                    creds.key,
+      signingKey:             signing.privateKey,
+      downloadsDir:           saved.downloadsDir           || null,
+      notificationHintShown:  saved.notificationHintShown || false,
     };
   }
 
@@ -136,11 +120,12 @@ async function resolveProfile(name, forceNew, ui) {
   return {
     deviceId,
     nickname,
-    discriminator: discriminatorFor(deviceId),
-    cert:          creds.cert,
-    key:           creds.key,
-    signingKey:    signing.privateKey,
-    downloadsDir:  null,
+    discriminator:         discriminatorFor(deviceId),
+    cert:                  creds.cert,
+    key:                   creds.key,
+    signingKey:            signing.privateKey,
+    downloadsDir:          null,
+    notificationHintShown: false,
   };
 }
 

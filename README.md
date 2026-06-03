@@ -26,7 +26,7 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Spaces** — `--space <name>` isolates a group of peers so only same-space instances discover each other
 - **Multiple profiles** — run different identities simultaneously with `--profile`
 - **Input syntax highlighting** — slash commands are coloured cyan, peer names bold-yellow, as you type; gracefully handles long paths that exceed the terminal width
-- **No runtime dependencies** — ships as a single self-contained JS file (~30 kB)
+- **No runtime dependencies** — ships as a single self-contained JS file (~70 kB)
 
 ---
 
@@ -44,7 +44,7 @@ npx lnchat
 lnchat --version
 ```
 
-**Requirements:** Node.js 18+, `openssl` (ships with macOS and most Linux distros).
+**Requirements:** Node.js 18+. Works on macOS, Linux, and Windows.
 
 ---
 
@@ -53,13 +53,13 @@ lnchat --version
 ```
 $ lnchat
 
-  _                    _           _
- | | __ _ _ __    ___| |__   __ _| |_
- | |/ _` | '_ \  / __| '_ \ / _` | __|
- | | (_| | | | || (__| | | | (_| | |_
- |_|\__,_|_| |_| \___|_| |_|\__,_|\__|
+ _            _           _
+| |_ __   ___| |__   __ _| |_
+| | '_ \ / __| '_ \ / _` | __|
+| | | | | (__| | | | (_| | |_
+|_|_| |_|\___|_| |_|\__,_|\__|
 
-  v1.0.0
+  v2.0.0
 
   ℹ  Logged in as anish#3fa1  (profile: default)
   ℹ  Connected to LAN
@@ -202,7 +202,7 @@ To broadcast a file to everyone on the network:
 ```
 > /share all /path/to/slides.pdf
 Send slides.pdf (5.1 MB) to 3 peers: Rahul#c2d9, Priya#8ab3, Dev#f12a. Proceed? (y/n): y
-📡 Broadcast offer sent to 3 peers. Waiting 10s for responses…
+📡 Broadcast offer sent to 3 peers. Waiting 15s for responses…
 ```
 
 Change where received files are saved (persisted to your profile):
@@ -308,7 +308,17 @@ lnchat --profile bob   --space dev      # sees alice
 lnchat --profile carol --space staging  # does NOT see alice or bob
 ```
 
-The space name is included in the Ed25519-signed HELLO packet, so it cannot be forged or stripped by an attacker.
+When `--space` is given, lnchat prompts for an optional passphrase:
+
+```
+Passphrase for space "team-alpha" (Enter to skip): ••••••••
+```
+
+The passphrase is never stored. It is combined with the space name using PBKDF2 to derive an opaque token, and that token is what gets broadcast in HELLO packets. Only peers who enter the same space name **and** the same passphrase derive the same token and can see each other. Pressing Enter skips the passphrase — the plain space name is used, which is the same behavior as before and fully compatible with older versions.
+
+Peers with no passphrase, the wrong passphrase, or an older version of lnchat all land in their own silently-isolated groups. Nobody receives an error — they simply don't see the protected peers.
+
+The space name (and derived token) is included in the Ed25519-signed HELLO packet, so it cannot be forged or stripped by an attacker.
 
 ### Full flag reference
 
@@ -320,6 +330,7 @@ The space name is included in the Ed25519-signed HELLO packet, so it cannot be f
 | `--remove-profile <name>` | Delete a profile and all its cryptographic keys, then exit |
 | `--factory-reset` | Delete **all** lnchat data (`~/.lnchat/`) — prompts for `yes` to confirm |
 | `--space <name>` | Restrict peer discovery to instances using the same space name |
+| `--port <n>` | Bind the TCP messaging server to a specific port (default: first free port in 9000–9009) |
 | `--no-notify` | Start with desktop notifications silenced (toggle later with `/notify`) |
 | `--version` / `-v` | Print the installed version and exit |
 
@@ -394,7 +405,7 @@ Five ports are used so multiple instances on the same machine each bind their ow
 
 ### Messaging — TCP + TLS
 
-Each instance runs a TLS server (port 9000 by default, falls back to a random OS-assigned port if taken). Messages are short-lived TLS connections directly to the peer's IP and port; they are newline-delimited JSON objects. The TLS connection verifies the peer's certificate against the fingerprint announced in the HELLO — a mismatch closes the connection immediately.
+Each instance runs a TLS server, binding to the first free port in the range 9000–9009 (or a specific port via `--port`). If all ten are taken it falls back to an OS-assigned port. Messages are short-lived TLS connections directly to the peer's IP and port; they are newline-delimited JSON objects. The TLS connection verifies the peer's certificate against the fingerprint announced in the HELLO — a mismatch closes the connection immediately.
 
 ### Identity
 
@@ -409,9 +420,9 @@ A persistent UUID is generated once per profile and stored in `~/.lnchat/profile
 - Cross-machine discovery uses subnet broadcast. The macOS firewall may show "Do you want the application node to accept incoming network connections?" on first run — click **Allow**.
 
 **Linux**
-- `ufw`: `sudo ufw allow 41234:41238/udp && sudo ufw allow 9000/tcp`
-- `iptables`: `iptables -A INPUT -p udp --dport 41234:41238 -j ACCEPT && iptables -A INPUT -p tcp --dport 9000 -j ACCEPT`
-- The TCP port falls back to a random port if 9000 is taken; the actual port is shown at startup.
+- `ufw`: `sudo ufw allow 41234:41238/udp && sudo ufw allow 9000:9009/tcp`
+- `iptables`: `iptables -A INPUT -p udp --dport 41234:41238 -j ACCEPT && iptables -A INPUT -p tcp --dport 9000:9009 -j ACCEPT`
+- lnchat tries ports 9000–9009 in order; the actual bound port is shown at startup. Use `--port <n>` to pin a specific port.
 
 ---
 

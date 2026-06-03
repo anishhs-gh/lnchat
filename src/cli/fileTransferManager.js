@@ -15,7 +15,7 @@ const {
 const logger = require('../utils/logger');
 
 const OFFER_TIMEOUT_MS     = 60_000;  // direct offer expires after 60 s
-const BROADCAST_WINDOW_MS  = 10_000;  // broadcast acceptance window
+const BROADCAST_WINDOW_MS  = 15_000;  // broadcast acceptance window
 const MAX_PARALLEL_STREAMS = 3;       // max simultaneous broadcast data streams
 const PROGRESS_INTERVAL_MS = 500;     // UI refresh rate
 
@@ -134,7 +134,7 @@ class FileTransferManager {
     }
 
     this._ui.print(logger.system(
-      `📎 [${offerId}] Offer sent to ${this._tag(peer)} — ${filename} (${formatBytes(fileSize)}). Waiting for response…`
+      `${logger.timestamp()} 📎 [${offerId}] Offer sent to ${this._tag(peer)} — ${filename} (${formatBytes(fileSize)}). Waiting for response…`
     ));
 
     this._outgoing.offerTimer = setTimeout(() => {
@@ -220,10 +220,10 @@ class FileTransferManager {
     );
 
     this._ui.print(logger.system(
-      `📡 Broadcast offer sent to ${peers.length} peers. Waiting ${BROADCAST_WINDOW_MS / 1000}s for responses…`
+      `${logger.timestamp()} 📡 Broadcast offer sent to ${peers.length} peers. Waiting ${BROADCAST_WINDOW_MS / 1000}s for responses…`
     ));
 
-    // 10-second acceptance window
+    // 15-second acceptance window
     this._outgoing.offerTimer = setTimeout(async () => {
       if (!this._outgoing || !this._outgoing.isBroadcast) return;
 
@@ -248,7 +248,7 @@ class FileTransferManager {
       }
 
       this._ui.print(logger.system(
-        `${accepted.length} peer${accepted.length !== 1 ? 's' : ''} accepted. Starting transfer…`
+        `${logger.timestamp()} ${accepted.length} peer${accepted.length !== 1 ? 's' : ''} accepted. Starting transfer…`
       ));
 
       // Move accepted peers into the queue, start first batch
@@ -281,7 +281,7 @@ class FileTransferManager {
 
     dataServer.on('progress', (sent) => { entry.bytesSent = sent; });
     dataServer.on('done', () => {
-      this._ui.print(logger.system(`✔ [${offerId}] Sent ${filename} to ${this._tag(peer)} (${formatBytes(fileSize)})`));
+      this._ui.print(logger.system(`${logger.timestamp()} ✔ [${offerId}] Sent ${filename} to ${this._tag(peer)} (${formatBytes(fileSize)})`));
       this._outgoing.broadcastActive = this._outgoing.broadcastActive.filter(a => a.offerId !== offerId);
       this._advanceBroadcastQueue();
     });
@@ -312,7 +312,7 @@ class FileTransferManager {
       const next = this._outgoing.broadcastQueue.shift();
       this._startBroadcastStream(next);
     } else if (this._outgoing.broadcastActive.length === 0) {
-      this._ui.print(logger.system('📡 Broadcast complete.'));
+      this._ui.print(logger.system(`${logger.timestamp()} 📡 Broadcast complete.`));
       this._outgoing = null;
       this._stopProgressTimer();
     }
@@ -423,12 +423,12 @@ class FileTransferManager {
 
       if (sha256 !== offer.sha256) {
         this._ui.print(logger.error(
-          `⚠ [${offerId}] ${offer.filename} failed integrity check — file deleted. Ask sender to retry.`
+          `${logger.timestamp()} ⚠ [${offerId}] ${offer.filename} failed integrity check — file deleted. Ask sender to retry.`
         ));
         try { require('fs').unlinkSync(offer.savePath); } catch (_) {}
       } else {
         this._ui.print(logger.system(
-          `✔ [${offerId}] Received ${offer.filename} (${formatBytes(bytesReceived)}) → ${offer.savePath}`
+          `${logger.timestamp()} ✔ [${offerId}] Received ${offer.filename} (${formatBytes(bytesReceived)}) → ${offer.savePath}`
         ));
       }
       this._tryNextQueued();
@@ -814,7 +814,7 @@ class FileTransferManager {
 
     const disc = from.discriminator ? logger.dim('#' + from.discriminator) : '';
     this._ui.print(
-      `📎 [${offerId}] ${logger.colorize(from.nickname)}${disc} wants to send ` +
+      `${logger.timestamp()} 📎 [${offerId}] ${logger.colorize(from.nickname)}${disc} wants to send ` +
       `${filename} (${formatBytes(fileSize)}).` +
       `  \x1b[36m/accept ${offerId}\x1b[0m  or  \x1b[36m/reject ${offerId}\x1b[0m`
     );
@@ -838,7 +838,7 @@ class FileTransferManager {
     if (this._outgoing.offerTimer) { clearTimeout(this._outgoing.offerTimer); this._outgoing.offerTimer = null; }
 
     this._outgoing.status = 'waiting_ready';
-    this._ui.print(logger.system(`[${offerId}] ${this._tag(this._outgoing.peer)} accepted. Opening data port…`));
+    this._ui.print(logger.system(`${logger.timestamp()} [${offerId}] ${this._tag(this._outgoing.peer)} accepted. Opening data port…`));
     this._openDataPortAndSendReady(offerId, this._outgoing.peer, 0);
   }
 
@@ -876,7 +876,7 @@ class FileTransferManager {
         this._stopProgressTimer();   // clears progress BEFORE printing so no redraw+erase flicker
       }
       this._ui.print(logger.system(
-        `✔ [${offerId}] Sent ${filename} to ${this._tag(peer)} (${formatBytes(fileSize)})`
+        `${logger.timestamp()} ✔ [${offerId}] Sent ${filename} to ${this._tag(peer)} (${formatBytes(fileSize)})`
       ));
     });
 

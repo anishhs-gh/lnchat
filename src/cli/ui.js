@@ -109,6 +109,31 @@ class UI {
     });
   }
 
+  // Like question() but shows * instead of the typed characters.
+  // Replaces readline's _writeToOutput temporarily:
+  //   - strings containing \x1b, \r, or \n are control/ANSI sequences → passed through as-is
+  //     so cursor positioning and line-erase sequences still work correctly
+  //   - pure printable content (the line buffer readline echoes) → replaced with * characters
+  questionSecret(prompt) {
+    return new Promise((resolve) => {
+      process.stdout.write(prompt);
+      const orig = this.rl._writeToOutput;
+      this.rl._writeToOutput = (str) => {
+        if (!str) return;
+        if (str.includes('\x1b') || str.includes('\r') || str.includes('\n')) {
+          process.stdout.write(str); // control/ANSI — pass through unchanged
+        } else {
+          process.stdout.write('*'.repeat(str.length)); // printable content — mask
+        }
+      };
+      this.rl.question('', (answer) => {
+        this.rl._writeToOutput = orig;
+        process.stdout.write('\n');
+        resolve(answer);
+      });
+    });
+  }
+
   // Start showing the interactive prompt
   showPrompt() {
     this.rl.prompt(true);

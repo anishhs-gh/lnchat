@@ -8,6 +8,7 @@ const Commands    = require('./cli/commands');
 const UI          = require('./cli/ui');
 const readline = require('readline');
 const { resolveProfile, listProfiles, removeProfile, certFingerprint, factoryReset, saveProfile, loadProfile } = require('./utils/profile');
+const { deriveSpaceToken } = require('./utils/space');
 const FileTransferManager = require('./cli/fileTransferManager');
 const KnownPeers     = require('./utils/knownPeers');
 const MessageHistory = require('./utils/messageHistory');
@@ -29,6 +30,7 @@ function parseArgs(argv) {
   let doFactoryReset = false;
   let space        = '';
   let noNotify     = false;
+  let port         = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--version' || args[i] === '-v') {
@@ -47,13 +49,15 @@ function parseArgs(argv) {
       space = args[++i];
     } else if (args[i] === '--no-notify') {
       noNotify = true;
+    } else if (args[i] === '--port' && args[i + 1]) {
+      port = parseInt(args[++i], 10);
     }
   }
-  return { profileName, forceNew, listProfiles, removeProfileName, showVersion, doFactoryReset, space, noNotify };
+  return { profileName, forceNew, listProfiles, removeProfileName, showVersion, doFactoryReset, space, noNotify, port };
 }
 
 async function main() {
-  const { profileName, forceNew, listProfiles: doList, removeProfileName, showVersion, doFactoryReset, space, noNotify } = parseArgs(process.argv);
+  const { profileName, forceNew, listProfiles: doList, removeProfileName, showVersion, doFactoryReset, space, noNotify, port } = parseArgs(process.argv);
 
   // ── Profile management commands (print and exit, no UI needed) ────────────
   if (showVersion) {
@@ -121,6 +125,19 @@ async function main() {
   const { deviceId, nickname, discriminator, cert, key, signingKey } = profile;
   const fingerprint = certFingerprint(cert);
 
+  // ── Space passphrase ──────────────────────────────────────────────────────
+  // If --space was given, prompt for an optional passphrase (hidden, not saved).
+  // The passphrase is used to derive an opaque token via PBKDF2; the token
+  // replaces the plain space name in all HELLO packets so only peers with the
+  // same name + passphrase can discover each other.  Empty passphrase = no
+  // derivation, plain space name used (backward-compatible with v1.0.0).
+  let spaceToken = space;
+  if (space) {
+    ui.printRaw(logger.info(`Space "${space}" may require a passphrase to reach other members.`));
+    const passphrase = await ui.questionSecret(`  Passphrase (Enter to join without one): `);
+    spaceToken = deriveSpaceToken(space, passphrase.trim());
+  }
+
   // ── Peer store ────────────────────────────────────────────────────────────
   const peerStore = new PeerStore();
   let   commands; // declared here so onLeave can reference it once it's assigned
@@ -137,14 +154,16 @@ async function main() {
   const history = new MessageHistory();
 
   // Shared notification toggle — read by the message handler, mutated by /notify
-  const notifyState = { enabled: !noNotify };
+  // notifyFailed: flips to true after the first failed notify-send call so the
+  // one-liner warning is shown at most once per session.
+  const notifyState = { enabled: !noNotify, notifyFailed: false };
 
   // Per-peer typing state: peerId → setTimeout handle.
   // A key is present only while the peer is considered "currently typing".
   const typingState = new Map();
 
   // ── TCP server (receives messages and responds to pings) ──────────────────
-  const tcpServer = new TCPServer(PREFERRED_TCP_PORT, (msg) => {
+  const tcpServer = new TCPServer(port || PREFERRED_TCP_PORT, (msg) => {
     // Arriving message ends the typing session for this peer.
     const timer = typingState.get(msg.from.id);
     if (timer !== undefined) {
@@ -156,7 +175,12 @@ async function main() {
     process.stdout.write('\x07'); // terminal bell (audio / dock badge)
     if (notifyState.enabled) {
       const discPlain = msg.from.discriminator ? `#${msg.from.discriminator}` : '';
-      notify(`lnchat — ${msg.from.nickname}${discPlain}`, msg.message);
+      notify(`lnchat — ${msg.from.nickname}${discPlain}`, msg.message, () => {
+        if (!notifyState.notifyFailed) {
+          notifyState.notifyFailed = true;
+          ui.print(logger.warn('Desktop notifications are not available on this device.'));
+        }
+      });
     }
     const disc = msg.from.discriminator ? logger.dim('#' + msg.from.discriminator) : '';
     const line = `${logger.timestamp()} ${logger.colorize(msg.from.nickname)}${disc}\n  ${msg.message}`;
@@ -197,10 +221,14 @@ async function main() {
     process.exit(1);
   }
 
+  if (port && tcpPort !== port) {
+    ui.printRaw(logger.warn(`Port ${port} is already in use — bound to ${tcpPort} instead.`));
+  }
+
   // ── Discovery ─────────────────────────────────────────────────────────────
   const knownPeers  = new KnownPeers();
-  const broadcaster = new Broadcaster(deviceId, nickname, discriminator, tcpPort, fingerprint, signingKey, space);
-  const listener    = new Listener(deviceId, peerStore, knownPeers, space);
+  const broadcaster = new Broadcaster(deviceId, nickname, discriminator, tcpPort, fingerprint, signingKey, spaceToken);
+  const listener    = new Listener(deviceId, peerStore, knownPeers, spaceToken);
 
   listener.onConflict = (id, nick) => {
     ui.print(logger.system(
@@ -223,6 +251,13 @@ async function main() {
   ui.printRaw(logger.info(`UDP discovery port : ${listener.boundPort}  (range 41234–41238)`));
   ui.printRaw('');
   ui.printRaw('Type /help for available commands.\n');
+
+  // macOS: show the notification permission hint once, the first time lnchat runs.
+  if (process.platform === 'darwin' && notifyState.enabled && !profile.notificationHintShown) {
+    ui.printRaw(logger.dim('  Tip: grant notification permission in System Settings → Notifications → Terminal to enable desktop alerts.'));
+    const saved = loadProfile(profileName) || {};
+    saveProfile(profileName, { ...saved, notificationHintShown: true });
+  }
 
   // ── File transfer manager ─────────────────────────────────────────────────
   const fileManager = new FileTransferManager(
