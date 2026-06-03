@@ -20,7 +20,7 @@ Be respectful. Constructive criticism is welcome; personal attacks are not.
 
 ## Development setup
 
-**Requirements:** Node.js 18+, npm, openssl (comes with macOS and most Linux distros).
+**Requirements:** Node.js 18+, npm.
 
 ```bash
 # 1. Fork the repo on GitHub, then clone your fork
@@ -48,21 +48,28 @@ src/
   cli/
     ui.js               readline wrapper, prompt management, input coloring
     commands.js         slash-command parser and handlers
+    fileTransferManager.js  file transfer state machine and UI integration
   discovery/
     broadcaster.js      UDP HELLO heartbeat (signed with Ed25519)
     listener.js         UDP HELLO receiver — verifies signatures, TOFU
   messaging/
-    tcpServer.js        TLS server — receives messages and pings
+    tcpServer.js        TLS server — receives messages, pings, and file control msgs
     tcpClient.js        TLS client — sends messages and pings
+    fileDataServer.js   TLS data server — streams file bytes to receiver
+    fileReceiver.js     TLS data client — receives and writes file bytes
   peer/
     peerStore.js        in-memory peer registry with stale-peer eviction
   utils/
     banner.js           ASCII art, version check against npm registry
+    fileUtils.js        file hashing, path parsing, progress bar, byte formatting
     knownPeers.js       TOFU persistent store (known_peers.json)
     logger.js           timestamp, colour helpers
     messageHistory.js   in-memory per-peer message log
     network.js          local IP / subnet broadcast helpers
+    notify.js           native desktop notification (osascript / notify-send)
     profile.js          profile management, TLS cert + Ed25519 key generation
+    space.js            PBKDF2 space token derivation for passphrase-protected spaces
+    tlsCert.js          pure-Node self-signed X.509 cert generator (no openssl)
     version.js          re-exports package.json version
 tests/
   *.test.js             Node built-in test runner (node:test)

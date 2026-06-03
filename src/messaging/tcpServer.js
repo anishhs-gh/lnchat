@@ -13,34 +13,54 @@ class TCPServer {
     this.preferredPort   = preferredPort;
     this.onMessage       = onMessage;
     this._tlsCredentials = tlsCredentials || null;
-    this.onTyping        = null; // optional: called with from when a TYPING packet arrives
-    this.onStopTyping    = null; // optional: called with from when a STOP_TYPING packet arrives
-    this._server         = null;
+    this.onTyping             = null; // optional: called with from when a TYPING packet arrives
+    this.onStopTyping         = null; // optional: called with from when a STOP_TYPING packet arrives
+    this.onFileOffer          = null;
+    this.onFileAccept         = null;
+    this.onFileReject         = null;
+    this.onFileReady          = null;
+    this.onFileCancel         = null;
+    this.onFilePause          = null;
+    this.onFileResume         = null;
+    this.onFileResumeRequest  = null;
+    this._server              = null;
   }
 
   start() {
+    const tlsOpts = this._tlsCredentials
+      ? { cert: this._tlsCredentials.cert, key: this._tlsCredentials.key, rejectUnauthorized: false }
+      : {};
+
+    this._server = tls.createServer(tlsOpts, (socket) => this._handleConnection(socket));
+
+    // Build the list of ports to attempt. When --port was specified the caller
+    // passes that as preferredPort and we try it alone before falling back to
+    // OS-assigned 0. Without --port we try the full 9000–9009 range first so
+    // that multiple local profiles each land on a predictable, firewallable port.
+    const preferred = this.preferredPort;
+    const isDefaultPort = (preferred === 9000);
+    const portQueue = isDefaultPort
+      ? [9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 0]
+      : [preferred, 0];
+
     return new Promise((resolve, reject) => {
-      const tlsOpts = this._tlsCredentials
-        ? { cert: this._tlsCredentials.cert, key: this._tlsCredentials.key, rejectUnauthorized: false }
-        : {};
-
-      this._server = tls.createServer(tlsOpts, (socket) => this._handleConnection(socket));
-
-      // Single error handler so EADDRINUSE doesn't both reject AND fall through
-      this._server.once('error', (err) => {
-        if (err.code !== 'EADDRINUSE') return reject(err);
-        // Port taken — ask OS for any free port
-        this._server.listen(0, '0.0.0.0', () => {
-          this._server.on('error', () => {});
+      const tryPort = (idx) => {
+        const p = portQueue[idx];
+        this._server.once('error', (err) => {
+          if (err.code === 'EADDRINUSE' && idx + 1 < portQueue.length) {
+            tryPort(idx + 1);
+          } else if (err.code !== 'EADDRINUSE') {
+            reject(err);
+          } else {
+            reject(new Error(`All ports in range ${portQueue[0]}–${portQueue[portQueue.length - 2]} are in use.`));
+          }
+        });
+        this._server.listen(p, '0.0.0.0', () => {
+          this._server.on('error', () => {}); // swallow post-bind runtime errors
           resolve(this._server.address().port);
         });
-        this._server.once('error', reject); // catch errors on the retry bind
-      });
-
-      this._server.listen(this.preferredPort, '0.0.0.0', () => {
-        this._server.on('error', () => {}); // swallow post-bind runtime errors
-        resolve(this._server.address().port);
-      });
+      };
+      tryPort(0);
     });
   }
 
@@ -90,7 +110,17 @@ class TCPServer {
 
     if (msg.type === 'STOP_TYPING' && this.onStopTyping && msg.from) {
       this.onStopTyping(msg.from);
+      return;
     }
+
+    if (msg.type === 'FILE_OFFER'          && this.onFileOffer)         { this.onFileOffer(msg);         return; }
+    if (msg.type === 'FILE_ACCEPT'         && this.onFileAccept)        { this.onFileAccept(msg);        return; }
+    if (msg.type === 'FILE_REJECT'         && this.onFileReject)        { this.onFileReject(msg);        return; }
+    if (msg.type === 'FILE_READY'          && this.onFileReady)         { this.onFileReady(msg);         return; }
+    if (msg.type === 'FILE_CANCEL'         && this.onFileCancel)        { this.onFileCancel(msg);        return; }
+    if (msg.type === 'FILE_PAUSE'          && this.onFilePause)         { this.onFilePause(msg);         return; }
+    if (msg.type === 'FILE_RESUME'         && this.onFileResume)        { this.onFileResume(msg);        return; }
+    if (msg.type === 'FILE_RESUME_REQUEST' && this.onFileResumeRequest) { this.onFileResumeRequest(msg); return; }
   }
 
   stop() {

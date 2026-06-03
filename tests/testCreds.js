@@ -1,26 +1,14 @@
 'use strict';
 
 // Shared TLS credentials and Ed25519 signing keys for tests.
-// Generated once and cached.  All tests that spin up a TCPServer or exercise
-// signed-HELLO paths import this module to get valid credentials.
+// Generated once at module load and cached for the entire test run.
+// No file I/O, no external binaries — pure Node crypto.
 
-const { execSync } = require('child_process');
 const crypto = require('crypto');
-const os   = require('os');
-const fs   = require('fs');
-const path = require('path');
+const { generateSelfSignedCert } = require('../src/utils/tlsCert');
 
 // ── TLS credentials ───────────────────────────────────────────────────────────
-const keyPath  = path.join(os.tmpdir(), 'lnchat-test-key.pem');
-const certPath = path.join(os.tmpdir(), 'lnchat-test-cert.pem');
-
-if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
-  execSync(
-    `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" ` +
-    `-days 1 -nodes -subj "/CN=lnchat-test" 2>/dev/null`,
-    { stdio: 'pipe' }
-  );
-}
+const { cert: _cert, key: _key } = generateSelfSignedCert('lnchat-test');
 
 // ── Ed25519 signing keys ──────────────────────────────────────────────────────
 // Generated in-process each test run (fast, no file I/O needed for tests)
@@ -54,8 +42,8 @@ function signHello(fields) {
 }
 
 module.exports = {
-  key:  fs.readFileSync(keyPath,  'utf8'),
-  cert: fs.readFileSync(certPath, 'utf8'),
+  key:  _key,
+  cert: _cert,
 
   // Ed25519 signing key (PEM) — pass to Broadcaster constructor as signingKey
   signingKey:          _signPrivPem,

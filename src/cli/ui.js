@@ -4,7 +4,7 @@ const readline = require('readline');
 
 // Commands whose first argument is a peer nickname — only these get the
 // bold-yellow nickname highlight in the input field.
-const NICK_COMMANDS = new Set(['/msg', '/focus', '/ping', '/history']);
+const NICK_COMMANDS = new Set(['/msg', '/focus', '/ping', '/history', '/share']);
 
 // Return a colored version of a slash-command input line:
 //   /command              → cyan
@@ -44,7 +44,8 @@ class UI {
       terminal: true,
     });
     this.rl.setPrompt('> ');
-    this._typingActive = false; // true when the typing indicator is the last printed line
+    this._typingActive  = false;       // true when the typing indicator is above the prompt
+    this._progressLines = null;        // null = none; string[] = currently shown progress lines
     this._setupInputColoring();
   }
 
@@ -57,6 +58,10 @@ class UI {
     const line   = rl.line   || '';
     const cursor = rl.cursor || 0;
     if (!line.startsWith('/')) return;
+    // Cursor math only works within a single visual line. If the prompt + input
+    // would wrap, \x1b[nD is clipped at column 0 and we'd corrupt the display.
+    const cols = process.stdout.columns || 80;
+    if (this.rl.getPrompt().length + line.length >= cols) return;
     const colored = colorizeInput(line);
     if (colored === line) return; // no ANSI injected, nothing to do
 
@@ -104,6 +109,31 @@ class UI {
     });
   }
 
+  // Like question() but shows * instead of the typed characters.
+  // Replaces readline's _writeToOutput temporarily:
+  //   - strings containing \x1b, \r, or \n are control/ANSI sequences → passed through as-is
+  //     so cursor positioning and line-erase sequences still work correctly
+  //   - pure printable content (the line buffer readline echoes) → replaced with * characters
+  questionSecret(prompt) {
+    return new Promise((resolve) => {
+      process.stdout.write(prompt);
+      const orig = this.rl._writeToOutput;
+      this.rl._writeToOutput = (str) => {
+        if (!str) return;
+        if (str.includes('\x1b') || str.includes('\r') || str.includes('\n')) {
+          process.stdout.write(str); // control/ANSI — pass through unchanged
+        } else {
+          process.stdout.write('*'.repeat(str.length)); // printable content — mask
+        }
+      };
+      this.rl.question('', (answer) => {
+        this.rl._writeToOutput = orig;
+        process.stdout.write('\n');
+        resolve(answer);
+      });
+    });
+  }
+
   // Start showing the interactive prompt
   showPrompt() {
     this.rl.prompt(true);
@@ -116,30 +146,46 @@ class UI {
   }
 
   // Print a message without breaking whatever the user is currently typing.
-  // When a typing indicator is on screen, we first erase it by going up one
-  // line (\x1b[1A) then clearing to end-of-screen (\x1b[J) before printing.
+  // Handles three possible states for the transient area above the prompt:
+  //   - progress lines showing  → erase all N lines + prompt, write msg, redraw both
+  //   - typing indicator showing → erase 1 line + prompt, write msg
+  //   - nothing showing          → just clear the prompt line and write msg
   print(msg) {
-    if (this._typingActive) {
+    if (this._progressLines !== null) {
+      const n = this._progressLines.length;
+      process.stdout.write('\r\x1b[K');                  // clear prompt line
+      process.stdout.write(`\x1b[${n}A\r\x1b[J`);       // up N lines, clear to end of screen
+      process.stdout.write(msg + '\n');
+      this.rl.prompt(true);
+      this._redrawProgress();
+    } else if (this._typingActive) {
       process.stdout.write('\r\x1b[K\x1b[1A\r\x1b[J' + msg + '\n');
       this._typingActive = false;
+      this.rl.prompt(true);
     } else {
       process.stdout.write('\r\x1b[K' + msg + '\n');
+      this.rl.prompt(true);
     }
-    this.rl.prompt(true);
   }
 
-  // Print a sent-message confirmation. Unlike print(), the cursor is already
-  // on a new line because readline moved it after the user pressed Enter. We
-  // go up one line (\x1b[1A) to overwrite readline's own echo of the input.
-  // When a typing indicator is on screen we go up two lines and erase both.
+  // Print a sent-message confirmation. The cursor is already on a new line
+  // because readline moved it after Enter. Go up to overwrite readline's echo.
+  // With progress: go up N+1 lines (N progress + 1 prompt/input), then redraw.
   printSent(msg) {
-    if (this._typingActive) {
+    if (this._progressLines !== null) {
+      const n = this._progressLines.length;
+      process.stdout.write(`\x1b[${n + 1}A\r\x1b[J`);   // up N+1, clear to end of screen
+      process.stdout.write(msg + '\n');
+      this.rl.prompt(true);
+      this._redrawProgress();
+    } else if (this._typingActive) {
       process.stdout.write('\x1b[2A\r\x1b[J' + msg + '\n');
       this._typingActive = false;
+      this.rl.prompt(true);
     } else {
       process.stdout.write('\x1b[1A\r\x1b[K' + msg + '\n');
+      this.rl.prompt(true);
     }
-    this.rl.prompt(true);
   }
 
   // Same as print but does NOT redraw the prompt — used during startup before the
@@ -148,20 +194,102 @@ class UI {
     process.stdout.write(msg + '\n');
   }
 
-  // Show a transient "X is typing..." hint. No-op if already showing — prevents
-  // stacking multiple lines when the peer goes idle and resumes.
+  // Show a transient "X is typing..." hint above the prompt.
+  // No-op if progress lines are visible (progress takes the transient slot) or
+  // if the indicator is already showing.
   showTyping(peerTag) {
+    if (this._progressLines !== null) return; // progress has priority
     if (this._typingActive) return;
     process.stdout.write('\r\x1b[K\x1b[2m● ' + peerTag + ' is typing...\x1b[0m\n');
     this._typingActive = true;
     this.rl.prompt(true);
   }
 
-  // Erase the typing indicator and restore the prompt — called on STOP_TYPING.
+  // Erase the typing indicator and restore the prompt.
   clearTyping() {
     if (!this._typingActive) return;
+    if (this._progressLines !== null) {
+      // Was suppressed by progress — just clear the flag; nothing to erase
+      this._typingActive = false;
+      return;
+    }
     process.stdout.write('\r\x1b[K\x1b[1A\r\x1b[J');
     this._typingActive = false;
+    this.rl.prompt(true);
+  }
+
+  // ── Progress display ──────────────────────────────────────────────────────────
+  //
+  // Progress lines are rendered ABOVE the prompt (same slot as the typing
+  // indicator).  The progress area can be multiple lines (broadcast transfers).
+  //
+  // Screen layout while progress is showing:
+  //   [progress line 1]
+  //   [progress line 2]    ← _progressLines.length rows above prompt
+  //   > [user input]       ← prompt (cursor here after rl.prompt(true))
+
+  // Render progress lines above the prompt for the first time (or replace all).
+  showProgress(lines) {
+    if (!lines || lines.length === 0) { this.clearProgress(); return; }
+
+    if (this._progressLines !== null) {
+      // Erase existing lines: cursor is on prompt line, go up N + clear to end
+      process.stdout.write('\r\x1b[K');
+      process.stdout.write(`\x1b[${this._progressLines.length}A\r\x1b[J`);
+    } else if (this._typingActive) {
+      process.stdout.write('\r\x1b[K\x1b[1A\r\x1b[J');
+      this._typingActive = false;
+    } else {
+      process.stdout.write('\r\x1b[K'); // clear prompt line only
+    }
+
+    this._progressLines = lines;
+    this._writeProgressLines(lines);
+    this.rl.prompt(true);
+  }
+
+  // Overwrite progress lines in-place.  If the count changes, falls back to showProgress.
+  updateProgress(lines) {
+    if (!lines || lines.length === 0) { this.clearProgress(); return; }
+    if (this._progressLines === null || this._progressLines.length !== lines.length) {
+      this.showProgress(lines);
+      return;
+    }
+    // Same number of lines — overwrite without scrolling.
+    // Cursor is on the prompt line; step up N lines and rewrite each.
+    this._progressLines = lines;
+    process.stdout.write(`\x1b[${lines.length}A`);
+    this._writeProgressLines(lines);
+    this.rl.prompt(true);
+  }
+
+  // Erase all progress lines and restore the prompt.
+  clearProgress() {
+    if (this._progressLines === null) return;
+    const n = this._progressLines.length;
+    process.stdout.write('\r\x1b[K');                    // clear prompt line
+    process.stdout.write(`\x1b[${n}A\r\x1b[J`);         // up N, clear to end of screen
+    this._progressLines = null;
+    this.rl.prompt(true);
+  }
+
+  // Write each progress line followed by a newline.  Cursor ends on the line
+  // immediately after the last progress line (where rl.prompt(true) will draw).
+  // Lines are clipped to terminal width so they never wrap — wrapping would
+  // break the cursor-math in clearProgress/updateProgress (each entry must be
+  // exactly 1 terminal row).
+  _writeProgressLines(lines) {
+    const maxW = Math.max(40, (process.stdout.columns || 80) - 2);
+    for (const line of lines) {
+      const safe = line.length > maxW ? line.slice(0, maxW - 1) + '…' : line;
+      process.stdout.write('\r\x1b[K\x1b[2m' + safe + '\x1b[0m\n');
+    }
+  }
+
+  // After printing a message, redraw the progress area that was erased.
+  _redrawProgress() {
+    if (this._progressLines === null) return;
+    this._writeProgressLines(this._progressLines);
     this.rl.prompt(true);
   }
 
@@ -177,7 +305,8 @@ class UI {
   // reappear correctly at the top of the fresh screen.
   clear() {
     process.stdout.write('\x1b[2J\x1b[H'); // erase screen + cursor to top-left
-    this._typingActive = false;
+    this._typingActive  = false;
+    this._progressLines = null;
     this.rl.prompt(false); // full redraw: move to col 0, write prompt + line buffer
   }
 

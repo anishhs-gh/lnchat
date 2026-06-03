@@ -17,6 +17,7 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Encrypted in transit** — all messages travel over TLS with self-signed certificates per identity
 - **Authenticated peers** — every discovery packet is signed with Ed25519; forged or replayed HELLOs are rejected
 - **Trust On First Use (TOFU)** — the first public key seen for a device is trusted; a changed key triggers a security warning
+- **File transfer** — send any file peer-to-peer with `/share`; receiver accepts or rejects; pause, resume, and cancel supported at any point
 - **Focused chat** — `/focus` locks onto one peer so you can type freely without prefixing every message
 - **Broadcast** — `/all` sends a message to every online peer in one command
 - **Typing indicators** — a live "● Alice is typing..." line appears and disappears in real time
@@ -24,8 +25,8 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Desktop notifications** — native OS notification on every incoming message; toggleable with `/notify` or `--no-notify`
 - **Spaces** — `--space <name>` isolates a group of peers so only same-space instances discover each other
 - **Multiple profiles** — run different identities simultaneously with `--profile`
-- **Input syntax highlighting** — slash commands are coloured cyan, peer names bold-yellow, as you type
-- **No runtime dependencies** — ships as a single self-contained JS file (~30 kB)
+- **Input syntax highlighting** — slash commands are coloured cyan, peer names bold-yellow, as you type; gracefully handles long paths that exceed the terminal width
+- **No runtime dependencies** — ships as a single self-contained JS file (~70 kB)
 
 ---
 
@@ -43,7 +44,7 @@ npx lnchat
 lnchat --version
 ```
 
-**Requirements:** Node.js 18+, `openssl` (ships with macOS and most Linux distros).
+**Requirements:** Node.js 18+. Works on macOS, Linux, and Windows.
 
 ---
 
@@ -52,13 +53,13 @@ lnchat --version
 ```
 $ lnchat
 
-  _                    _           _
- | | __ _ _ __    ___| |__   __ _| |_
- | |/ _` | '_ \  / __| '_ \ / _` | __|
- | | (_| | | | || (__| | | | (_| | |_
- |_|\__,_|_| |_| \___|_| |_|\__,_|\__|
+ _            _           _
+| |_ __   ___| |__   __ _| |_
+| | '_ \ / __| '_ \ / _` | __|
+| | | | | (__| | | | (_| | |_
+|_|_| |_|\___|_| |_|\__,_|\__|
 
-  v1.0.0
+  v2.0.0
 
   ℹ  Logged in as anish#3fa1  (profile: default)
   ℹ  Connected to LAN
@@ -95,6 +96,21 @@ When another lnchat instance appears on the network:
 | `/clear` | Clear the terminal screen (local only) |
 | `/help` | Show available commands |
 | `/exit` | Quit |
+
+**File transfer**
+
+| Command | Description |
+|---|---|
+| `/share <name> <file>` | Offer a file to a peer (drag the path from Finder/Files into the terminal) |
+| `/share <file>` | Offer to focused peer (focus mode shorthand) |
+| `/share all <file>` | Broadcast a file offer to all online peers (confirmation required) |
+| `/accept [id]` | Accept an incoming file offer (`id` optional when only one is pending) |
+| `/reject [id]` | Decline a file offer |
+| `/cancel [id]` | Cancel an active transfer (`id` required if both sides are transferring) |
+| `/pause [id]` | Pause an active transfer |
+| `/resume [id]` | Resume a paused transfer |
+| `/transfers` | List all active, queued, and pending transfers |
+| `/downloads [path]` | Show or change the download directory (default: `~/Downloads`) |
 
 ### Sending messages
 
@@ -150,6 +166,52 @@ Slash commands still work normally while in focus mode. If the focused peer goes
 [14:15] You → everyone: standup in 5 minutes
 ```
 
+### File transfer
+
+Send any file to a peer with `/share`. The transfer is encrypted over a dedicated TLS data connection.
+
+```
+> /share Rahul ~/Desktop/report.pdf
+⏳ Hashing report.pdf…
+📎 [8cd5] Offer sent to Rahul#c2d9 — report.pdf (2.3 MB). Waiting for response…
+[8cd5] Rahul#c2d9 accepted. Opening data port…
+✔ [8cd5] Sent report.pdf to Rahul#c2d9 (2.3 MB)
+```
+
+On Rahul's side:
+
+```
+📎 [8cd5] anish#3fa1 wants to send report.pdf (2.3 MB).  /accept 8cd5  or  /reject 8cd5
+
+> /accept 8cd5
+✔ [8cd5] Received report.pdf (2.3 MB) → /Users/rahul/Downloads/report.pdf
+```
+
+In focus mode the peer name is implicit:
+
+```
+@Rahul#c2d9> /share ~/Desktop/report.pdf
+```
+
+You can drag a file from Finder or your file manager into the terminal and the shell will paste the path; no need to type it out.
+
+While a transfer is running a progress bar appears above the prompt. Use `/pause` and `/resume` to throttle without losing progress, or `/cancel` to abort. `/transfers` shows the state of all concurrent transfers.
+
+To broadcast a file to everyone on the network:
+
+```
+> /share all /path/to/slides.pdf
+Send slides.pdf (5.1 MB) to 3 peers: Rahul#c2d9, Priya#8ab3, Dev#f12a. Proceed? (y/n): y
+📡 Broadcast offer sent to 3 peers. Waiting 15s for responses…
+```
+
+Change where received files are saved (persisted to your profile):
+
+```
+> /downloads ~/Documents/lnchat-files
+  ℹ  Downloads directory set to: /Users/anish/Documents/lnchat-files
+```
+
 ### Typing indicators
 
 While typing in focus mode (or composing a message via `/msg`), a live indicator appears on the recipient's terminal:
@@ -195,7 +257,7 @@ Toggle notifications at runtime:
 Slash commands are highlighted as you type:
 
 - `/command` → **cyan**
-- `peername` (first argument to `/msg`, `/focus`, `/ping`, `/history`) → **bold yellow**
+- `peername` (first argument to `/msg`, `/focus`, `/ping`, `/history`, `/share`) → **bold yellow**
 - rest of the text → normal
 
 ### Keyboard shortcuts
@@ -246,7 +308,17 @@ lnchat --profile bob   --space dev      # sees alice
 lnchat --profile carol --space staging  # does NOT see alice or bob
 ```
 
-The space name is included in the Ed25519-signed HELLO packet, so it cannot be forged or stripped by an attacker.
+When `--space` is given, lnchat prompts for an optional passphrase:
+
+```
+Passphrase for space "team-alpha" (Enter to skip): ••••••••
+```
+
+The passphrase is never stored. It is combined with the space name using PBKDF2 to derive an opaque token, and that token is what gets broadcast in HELLO packets. Only peers who enter the same space name **and** the same passphrase derive the same token and can see each other. Pressing Enter skips the passphrase — the plain space name is used, which is the same behavior as before and fully compatible with older versions.
+
+Peers with no passphrase, the wrong passphrase, or an older version of lnchat all land in their own silently-isolated groups. Nobody receives an error — they simply don't see the protected peers.
+
+The space name (and derived token) is included in the Ed25519-signed HELLO packet, so it cannot be forged or stripped by an attacker.
 
 ### Full flag reference
 
@@ -258,6 +330,7 @@ The space name is included in the Ed25519-signed HELLO packet, so it cannot be f
 | `--remove-profile <name>` | Delete a profile and all its cryptographic keys, then exit |
 | `--factory-reset` | Delete **all** lnchat data (`~/.lnchat/`) — prompts for `yes` to confirm |
 | `--space <name>` | Restrict peer discovery to instances using the same space name |
+| `--port <n>` | Bind the TCP messaging server to a specific port (default: first free port in 9000–9009) |
 | `--no-notify` | Start with desktop notifications silenced (toggle later with `/notify`) |
 | `--version` / `-v` | Print the installed version and exit |
 
@@ -332,7 +405,7 @@ Five ports are used so multiple instances on the same machine each bind their ow
 
 ### Messaging — TCP + TLS
 
-Each instance runs a TLS server (port 9000 by default, falls back to a random OS-assigned port if taken). Messages are short-lived TLS connections directly to the peer's IP and port; they are newline-delimited JSON objects. The TLS connection verifies the peer's certificate against the fingerprint announced in the HELLO — a mismatch closes the connection immediately.
+Each instance runs a TLS server, binding to the first free port in the range 9000–9009 (or a specific port via `--port`). If all ten are taken it falls back to an OS-assigned port. Messages are short-lived TLS connections directly to the peer's IP and port; they are newline-delimited JSON objects. The TLS connection verifies the peer's certificate against the fingerprint announced in the HELLO — a mismatch closes the connection immediately.
 
 ### Identity
 
@@ -347,9 +420,9 @@ A persistent UUID is generated once per profile and stored in `~/.lnchat/profile
 - Cross-machine discovery uses subnet broadcast. The macOS firewall may show "Do you want the application node to accept incoming network connections?" on first run — click **Allow**.
 
 **Linux**
-- `ufw`: `sudo ufw allow 41234:41238/udp && sudo ufw allow 9000/tcp`
-- `iptables`: `iptables -A INPUT -p udp --dport 41234:41238 -j ACCEPT && iptables -A INPUT -p tcp --dport 9000 -j ACCEPT`
-- The TCP port falls back to a random port if 9000 is taken; the actual port is shown at startup.
+- `ufw`: `sudo ufw allow 41234:41238/udp && sudo ufw allow 9000:9009/tcp`
+- `iptables`: `iptables -A INPUT -p udp --dport 41234:41238 -j ACCEPT && iptables -A INPUT -p tcp --dport 9000:9009 -j ACCEPT`
+- lnchat tries ports 9000–9009 in order; the actual bound port is shown at startup. Use `--port <n>` to pin a specific port.
 
 ---
 

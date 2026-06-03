@@ -1,21 +1,34 @@
 'use strict';
 
 const { sendMessage, sendPing } = require('../messaging/tcpClient');
+const { parseFilePath }          = require('../utils/fileUtils');
 const logger = require('../utils/logger');
 
 const HELP_TEXT = `
 Commands:
-  /list                List discovered devices
-  /msg <name> [msg]    Send a message (omit [msg] to be prompted)
-  /ping <name>         Ping a peer and show round-trip time
-  /focus <name>        Enter focused chat with a peer (all text goes to them)
-  /back                Exit focused chat and return to global prompt
-  /all <msg>           Broadcast a message to all online peers
-  /history [name]      Show recent message history (optionally filtered by peer)
-  /notify              Toggle desktop notifications on/off
-  /clear               Clear the terminal screen (local only)
-  /help                Show this help
-  /exit                Quit
+  /list                  List discovered devices
+  /msg <name> [msg]      Send a message (omit [msg] to be prompted)
+  /ping <name>           Ping a peer and show round-trip time
+  /focus <name>          Enter focused chat with a peer (all text goes to them)
+  /back                  Exit focused chat and return to global prompt
+  /all <msg>             Broadcast a message to all online peers
+  /history [name]        Show recent message history (optionally filtered by peer)
+  /notify                Toggle desktop notifications on/off
+  /clear                 Clear the terminal screen (local only)
+  /help                  Show this help
+  /exit                  Quit
+
+File transfer:
+  /share <name> <file>   Offer a file to a peer (drag file into terminal to paste path)
+  /share <file>          Offer to focused peer (in focus mode)
+  /share all <file>      Broadcast offer to all peers (confirmation required)
+  /accept [id]           Accept an incoming file offer (id optional if only one pending)
+  /reject [id]           Decline a file offer
+  /cancel [id]           Cancel active transfer (id required if ambiguous)
+  /pause  [id]           Pause active transfer
+  /resume [id]           Resume paused transfer
+  /transfers             Show all active, queued, and pending transfers
+  /downloads [path]      Show or set the download directory
 `.trim();
 
 class Commands {
@@ -29,10 +42,12 @@ class Commands {
     this.history       = history;
     this._notifyState  = notifyState;
 
-    this._pendingTarget   = null;  // one-shot: next plain line goes to this peer
-    this._focusTarget     = null;  // sticky: all plain lines go to this peer
-    this._lastTypingSent  = 0;     // debounce timestamp for outgoing TYPING packets
-    this._stopTypingTimer = null;  // fires STOP_TYPING after 3s of no keypresses
+    this._pendingTarget        = null;  // one-shot: next plain line goes to this peer
+    this._focusTarget          = null;  // sticky: all plain lines go to this peer
+    this._lastTypingSent       = 0;     // debounce timestamp for outgoing TYPING packets
+    this._stopTypingTimer      = null;  // fires STOP_TYPING after 3s of no keypresses
+    this.fileManager           = null;  // set by index.js after construction
+    this._onDownloadsDirChange = null;  // set by index.js to persist changes to profile
 
     // Send typing indicators to the focused peer on keypress
     ui.onKeypress(() => this._sendTypingIndicator());
@@ -83,6 +98,22 @@ class Commands {
     } else if (trimmed === '/exit') {
       this.ui.print('Goodbye!');
       process.exit(0);
+    } else if (trimmed.startsWith('/share')) {
+      await this._share(trimmed.slice(6).trim());
+    } else if (trimmed.startsWith('/accept')) {
+      await this._accept(trimmed.slice(7).trim());
+    } else if (trimmed.startsWith('/reject')) {
+      this._reject(trimmed.slice(7).trim());
+    } else if (trimmed.startsWith('/cancel')) {
+      this._cancel(trimmed.slice(7).trim());
+    } else if (trimmed.startsWith('/pause')) {
+      this._pause(trimmed.slice(6).trim());
+    } else if (trimmed.startsWith('/resume')) {
+      await this._resume(trimmed.slice(7).trim());
+    } else if (trimmed === '/transfers') {
+      this._transfers();
+    } else if (trimmed.startsWith('/downloads')) {
+      await this._downloads(trimmed.slice(10).trim());
     } else if (trimmed.startsWith('/')) {
       this.ui.print(logger.warn(`Unknown command "${trimmed}". Type /help for help.`));
     } else {
@@ -98,6 +129,7 @@ class Commands {
       this._focusTarget = null;
       this.ui.setPrompt('> ');
     }
+    if (this.fileManager) this.fileManager.peerLeft(peer);
   }
 
   // ── /list ────────────────────────────────────────────────────────────────────
@@ -266,6 +298,116 @@ class Commands {
     // clear() erases the screen and does a full readline redraw internally,
     // which works correctly in both normal and focus mode.
     this.ui.clear();
+  }
+
+  // ── /share ───────────────────────────────────────────────────────────────────
+
+  async _share(args) {
+    if (!args) {
+      this.ui.print(logger.warn('Usage: /share <name> <filepath>  or  /share all <filepath>'));
+      return;
+    }
+    if (!this.fileManager) return;
+
+    // Broadcast: /share all <filepath>
+    if (args.startsWith('all ') || args === 'all') {
+      const rawPath = args.slice(4).trim();
+      if (!rawPath) { this.ui.print(logger.warn('Usage: /share all <filepath>')); return; }
+      const peers = this.peerStore.list();
+      if (peers.length === 0) { this.ui.print(logger.warn('No peers online.')); return; }
+      await this.fileManager.offerAll(peers, parseFilePath(rawPath));
+      return;
+    }
+
+    // Direct: /share <name> <filepath>  OR  /share <filepath>  (in focus mode)
+    const spaceIdx = args.indexOf(' ');
+
+    let peer, rawPath;
+
+    if (spaceIdx === -1) {
+      // Single token — only valid in focus mode (the token is a path)
+      if (!this._focusTarget) {
+        this.ui.print(logger.warn('Usage: /share <name> <filepath>'));
+        return;
+      }
+      peer    = this._focusTarget;
+      rawPath = args;
+    } else {
+      const targetName = args.slice(0, spaceIdx);
+      rawPath          = args.slice(spaceIdx + 1).trim();
+
+      // In focus mode with a path that starts with / or ~ — treat whole arg as path
+      if (this._focusTarget && (targetName.startsWith('/') || targetName.startsWith('~') || targetName.startsWith('"') || targetName.startsWith("'"))) {
+        peer    = this._focusTarget;
+        rawPath = args;
+      } else {
+        peer = this._resolvePeer(targetName);
+        if (!peer) return;
+      }
+    }
+
+    await this.fileManager.offerFile(peer, parseFilePath(rawPath));
+  }
+
+  // ── /accept ──────────────────────────────────────────────────────────────────
+
+  async _accept(args) {
+    if (!this.fileManager) return;
+    await this.fileManager.acceptOffer(args || undefined);
+  }
+
+  // ── /reject ──────────────────────────────────────────────────────────────────
+
+  _reject(args) {
+    if (!this.fileManager) return;
+    this.fileManager.rejectOffer(args || undefined);
+  }
+
+  // ── /cancel ──────────────────────────────────────────────────────────────────
+
+  _cancel(args) {
+    if (!this.fileManager) return;
+    this.fileManager.cancel(args || undefined);
+  }
+
+  // ── /pause ───────────────────────────────────────────────────────────────────
+
+  _pause(args) {
+    if (!this.fileManager) return;
+    this.fileManager.pause(args || undefined);
+  }
+
+  // ── /resume ──────────────────────────────────────────────────────────────────
+
+  async _resume(args) {
+    if (!this.fileManager) return;
+    await this.fileManager.resume(args || undefined);
+  }
+
+  // ── /transfers ───────────────────────────────────────────────────────────────
+
+  _transfers() {
+    if (!this.fileManager) { this.ui.print('No active transfers.'); return; }
+    this.ui.print(this.fileManager.listTransfers());
+  }
+
+  // ── /downloads ───────────────────────────────────────────────────────────────
+
+  async _downloads(args) {
+    if (!this.fileManager) return;
+    if (!args) {
+      this.ui.print(logger.system(`Downloads directory: ${this.fileManager._downloadsDir}`));
+      return;
+    }
+    const resolved = parseFilePath(args);
+    const fs = require('fs');
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+      this.ui.print(logger.error(`Directory not found: ${resolved}`));
+      return;
+    }
+    this.fileManager.setDownloadsDir(resolved);
+    this.ui.print(logger.system(`Downloads directory set to: ${resolved}`));
+    if (this._onDownloadsDirChange) await this._onDownloadsDirChange(resolved);
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────────
