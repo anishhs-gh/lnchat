@@ -17,6 +17,7 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Encrypted in transit** — all messages travel over TLS with self-signed certificates per identity
 - **Authenticated peers** — every discovery packet is signed with Ed25519; forged or replayed HELLOs are rejected
 - **Trust On First Use (TOFU)** — the first public key seen for a device is trusted; a changed key triggers a security warning
+- **File transfer** — send any file peer-to-peer with `/share`; receiver accepts or rejects; pause, resume, and cancel supported at any point
 - **Focused chat** — `/focus` locks onto one peer so you can type freely without prefixing every message
 - **Broadcast** — `/all` sends a message to every online peer in one command
 - **Typing indicators** — a live "● Alice is typing..." line appears and disappears in real time
@@ -24,7 +25,7 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Desktop notifications** — native OS notification on every incoming message; toggleable with `/notify` or `--no-notify`
 - **Spaces** — `--space <name>` isolates a group of peers so only same-space instances discover each other
 - **Multiple profiles** — run different identities simultaneously with `--profile`
-- **Input syntax highlighting** — slash commands are coloured cyan, peer names bold-yellow, as you type
+- **Input syntax highlighting** — slash commands are coloured cyan, peer names bold-yellow, as you type; gracefully handles long paths that exceed the terminal width
 - **No runtime dependencies** — ships as a single self-contained JS file (~30 kB)
 
 ---
@@ -96,6 +97,21 @@ When another lnchat instance appears on the network:
 | `/help` | Show available commands |
 | `/exit` | Quit |
 
+**File transfer**
+
+| Command | Description |
+|---|---|
+| `/share <name> <file>` | Offer a file to a peer (drag the path from Finder/Files into the terminal) |
+| `/share <file>` | Offer to focused peer (focus mode shorthand) |
+| `/share all <file>` | Broadcast a file offer to all online peers (confirmation required) |
+| `/accept [id]` | Accept an incoming file offer (`id` optional when only one is pending) |
+| `/reject [id]` | Decline a file offer |
+| `/cancel [id]` | Cancel an active transfer (`id` required if both sides are transferring) |
+| `/pause [id]` | Pause an active transfer |
+| `/resume [id]` | Resume a paused transfer |
+| `/transfers` | List all active, queued, and pending transfers |
+| `/downloads [path]` | Show or change the download directory (default: `~/Downloads`) |
+
 ### Sending messages
 
 ```
@@ -150,6 +166,52 @@ Slash commands still work normally while in focus mode. If the focused peer goes
 [14:15] You → everyone: standup in 5 minutes
 ```
 
+### File transfer
+
+Send any file to a peer with `/share`. The transfer is encrypted over a dedicated TLS data connection.
+
+```
+> /share Rahul ~/Desktop/report.pdf
+⏳ Hashing report.pdf…
+📎 [8cd5] Offer sent to Rahul#c2d9 — report.pdf (2.3 MB). Waiting for response…
+[8cd5] Rahul#c2d9 accepted. Opening data port…
+✔ [8cd5] Sent report.pdf to Rahul#c2d9 (2.3 MB)
+```
+
+On Rahul's side:
+
+```
+📎 [8cd5] anish#3fa1 wants to send report.pdf (2.3 MB).  /accept 8cd5  or  /reject 8cd5
+
+> /accept 8cd5
+✔ [8cd5] Received report.pdf (2.3 MB) → /Users/rahul/Downloads/report.pdf
+```
+
+In focus mode the peer name is implicit:
+
+```
+@Rahul#c2d9> /share ~/Desktop/report.pdf
+```
+
+You can drag a file from Finder or your file manager into the terminal and the shell will paste the path; no need to type it out.
+
+While a transfer is running a progress bar appears above the prompt. Use `/pause` and `/resume` to throttle without losing progress, or `/cancel` to abort. `/transfers` shows the state of all concurrent transfers.
+
+To broadcast a file to everyone on the network:
+
+```
+> /share all /path/to/slides.pdf
+Send slides.pdf (5.1 MB) to 3 peers: Rahul#c2d9, Priya#8ab3, Dev#f12a. Proceed? (y/n): y
+📡 Broadcast offer sent to 3 peers. Waiting 10s for responses…
+```
+
+Change where received files are saved (persisted to your profile):
+
+```
+> /downloads ~/Documents/lnchat-files
+  ℹ  Downloads directory set to: /Users/anish/Documents/lnchat-files
+```
+
 ### Typing indicators
 
 While typing in focus mode (or composing a message via `/msg`), a live indicator appears on the recipient's terminal:
@@ -195,7 +257,7 @@ Toggle notifications at runtime:
 Slash commands are highlighted as you type:
 
 - `/command` → **cyan**
-- `peername` (first argument to `/msg`, `/focus`, `/ping`, `/history`) → **bold yellow**
+- `peername` (first argument to `/msg`, `/focus`, `/ping`, `/history`, `/share`) → **bold yellow**
 - rest of the text → normal
 
 ### Keyboard shortcuts

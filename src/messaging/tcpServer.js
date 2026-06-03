@@ -13,9 +13,17 @@ class TCPServer {
     this.preferredPort   = preferredPort;
     this.onMessage       = onMessage;
     this._tlsCredentials = tlsCredentials || null;
-    this.onTyping        = null; // optional: called with from when a TYPING packet arrives
-    this.onStopTyping    = null; // optional: called with from when a STOP_TYPING packet arrives
-    this._server         = null;
+    this.onTyping             = null; // optional: called with from when a TYPING packet arrives
+    this.onStopTyping         = null; // optional: called with from when a STOP_TYPING packet arrives
+    this.onFileOffer          = null;
+    this.onFileAccept         = null;
+    this.onFileReject         = null;
+    this.onFileReady          = null;
+    this.onFileCancel         = null;
+    this.onFilePause          = null;
+    this.onFileResume         = null;
+    this.onFileResumeRequest  = null;
+    this._server              = null;
   }
 
   start() {
@@ -90,7 +98,17 @@ class TCPServer {
 
     if (msg.type === 'STOP_TYPING' && this.onStopTyping && msg.from) {
       this.onStopTyping(msg.from);
+      return;
     }
+
+    if (msg.type === 'FILE_OFFER'          && this.onFileOffer)         { this.onFileOffer(msg);         return; }
+    if (msg.type === 'FILE_ACCEPT'         && this.onFileAccept)        { this.onFileAccept(msg);        return; }
+    if (msg.type === 'FILE_REJECT'         && this.onFileReject)        { this.onFileReject(msg);        return; }
+    if (msg.type === 'FILE_READY'          && this.onFileReady)         { this.onFileReady(msg);         return; }
+    if (msg.type === 'FILE_CANCEL'         && this.onFileCancel)        { this.onFileCancel(msg);        return; }
+    if (msg.type === 'FILE_PAUSE'          && this.onFilePause)         { this.onFilePause(msg);         return; }
+    if (msg.type === 'FILE_RESUME'         && this.onFileResume)        { this.onFileResume(msg);        return; }
+    if (msg.type === 'FILE_RESUME_REQUEST' && this.onFileResumeRequest) { this.onFileResumeRequest(msg); return; }
   }
 
   stop() {

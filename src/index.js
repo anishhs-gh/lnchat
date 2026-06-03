@@ -7,7 +7,8 @@ const TCPServer   = require('./messaging/tcpServer');
 const Commands    = require('./cli/commands');
 const UI          = require('./cli/ui');
 const readline = require('readline');
-const { resolveProfile, listProfiles, removeProfile, certFingerprint, factoryReset } = require('./utils/profile');
+const { resolveProfile, listProfiles, removeProfile, certFingerprint, factoryReset, saveProfile, loadProfile } = require('./utils/profile');
+const FileTransferManager = require('./cli/fileTransferManager');
 const KnownPeers     = require('./utils/knownPeers');
 const MessageHistory = require('./utils/messageHistory');
 const { getLocalIPs } = require('./utils/network');
@@ -223,8 +224,34 @@ async function main() {
   ui.printRaw('');
   ui.printRaw('Type /help for available commands.\n');
 
+  // ── File transfer manager ─────────────────────────────────────────────────
+  const fileManager = new FileTransferManager(
+    peerStore, deviceId, nickname, discriminator, ui, cert, key, fingerprint
+  );
+
+  // Load persisted download directory from profile (falls back to ~/Downloads inside the manager)
+  if (profile.downloadsDir) fileManager.setDownloadsDir(profile.downloadsDir);
+
+  // Wire all file-transfer control messages from TCPServer → FileTransferManager
+  tcpServer.onFileOffer         = (msg) => fileManager.onFileOffer(msg);
+  tcpServer.onFileAccept        = (msg) => fileManager.onFileAccept(msg);
+  tcpServer.onFileReject        = (msg) => fileManager.onFileReject(msg);
+  tcpServer.onFileReady         = (msg) => fileManager.onFileReady(msg);
+  tcpServer.onFileCancel        = (msg) => fileManager.onFileCancel(msg);
+  tcpServer.onFilePause         = (msg) => fileManager.onFilePause(msg);
+  tcpServer.onFileResume        = (msg) => fileManager.onFileResume(msg);
+  tcpServer.onFileResumeRequest = (msg) => fileManager.onFileResumeRequest(msg);
+
   // ── CLI input loop ────────────────────────────────────────────────────────
   commands = new Commands(peerStore, deviceId, nickname, discriminator, ui, history, notifyState);
+
+  commands.fileManager = fileManager;
+
+  // Persist /downloads directory changes back to the profile JSON
+  commands._onDownloadsDirChange = (newDir) => {
+    const saved = loadProfile(profileName) || {};
+    saveProfile(profileName, { ...saved, downloadsDir: newDir });
+  };
 
   ui.showPrompt();
 
@@ -239,6 +266,7 @@ async function main() {
   function shutdown() {
     if (shuttingDown) return;
     shuttingDown = true;
+    fileManager.cancelAll();   // notify peers before discovery stops
     broadcaster.stop();
     listener.stop();
     tcpServer.stop();

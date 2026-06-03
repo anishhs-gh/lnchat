@@ -122,6 +122,7 @@ async function resolveProfile(name, forceNew, ui) {
       cert:          creds.cert,
       key:           creds.key,
       signingKey:    signing.privateKey,
+      downloadsDir:  saved.downloadsDir || null,
     };
   }
 
@@ -139,6 +140,7 @@ async function resolveProfile(name, forceNew, ui) {
     cert:          creds.cert,
     key:           creds.key,
     signingKey:    signing.privateKey,
+    downloadsDir:  null,
   };
 }
 
@@ -176,4 +178,4 @@ function factoryReset() {
   return true;
 }
 
-module.exports = { resolveProfile, discriminatorFor, certFingerprint, listProfiles, removeProfile, factoryReset };
+module.exports = { resolveProfile, discriminatorFor, certFingerprint, listProfiles, removeProfile, factoryReset, saveProfile, loadProfile };

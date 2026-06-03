@@ -8,6 +8,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+#### File transfer
+- `/share <name> <file>` — offer a file to a named peer with SHA-256 integrity verification
+- `/share <file>` — focus-mode shorthand; peer name is inferred from the focused target
+- `/share all <file>` — broadcast a file offer to all online peers with a 10-second acceptance window
+- `/accept [id]` — accept an incoming file offer; `id` optional when only one offer is pending
+- `/reject [id]` — decline an incoming offer
+- `/cancel [id]` — abort an active outgoing or incoming transfer
+- `/pause [id]` / `/resume [id]` — pause and resume transfers without losing progress; either side may initiate
+- `/transfers` — list all active, queued, and pending transfers with progress percentages
+- `/downloads [path]` — show or change the download directory; change is persisted to the profile
+- Live progress bar above the prompt during transfers; clipped to terminal width to avoid cursor-math errors
+- Transfer integrity check on completion — corrupt or truncated files are deleted and the sender is notified
+- Graceful peer-offline handling: active transfers are cancelled with a notice when the remote peer disconnects
+- All data connections use a dedicated TLS stream (same cert/key as messaging)
+
+### Fixed
+- Input syntax highlighting no longer duplicates the command line when the prompt + typed text exceeds the terminal width (`_repaintInput` now skips repainting for wrapping lines)
+
 ---
 
 ## [1.0.0] — 2026-05-24
