@@ -1,0 +1,65 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+// ── lnchat color palette ───────────────────────────────────────────────────
+// Matches the terminal app: cyan accent, dark chrome, clean contrast.
+
+// Header / sidebar gradient — replaces Leap Day's default green
+header {
+  background: linear-gradient(to bottom, #0097a7, #006064) !important;
+  border-bottom: 3px solid #36cfc9 !important;
+
+  h1 {
+    color: #e0f7fa !important;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  p {
+    color: #b2ebf2 !important;
+  }
+
+  a {
+    color: #80deea !important;
+    &:hover { color: #ffffff !important; }
+  }
+}
+
+// Main body links — cyan instead of green
+#content-wrapper {
+  a {
+    color: #0097a7;
+    &:hover { color: #006064; }
+  }
+}
+
+// Inline code — subtle dark background to echo the terminal feel
+code {
+  background-color: #f0f9fa;
+  border: 1px solid #b2ebf2;
+  color: #006064;
+}
+
+// Fenced code blocks
+pre {
+  background-color: #1a1a2e;
+  border: 1px solid #36cfc9;
+  code {
+    background: none;
+    border: none;
+    color: #e0f7fa;
+  }
+}
+
+// Blockquotes — left border in cyan
+blockquote {
+  border-left: 4px solid #36cfc9;
+  color: #555;
+}
+
+// Tables — header row tinted
+table th {
+  background-color: #e0f7fa;
+  color: #006064;
+}
