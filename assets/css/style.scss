@@ -3,110 +3,183 @@
 
 @import "{{ site.theme }}";
 
-// ── lnchat × Hacker theme ──────────────────────────────────────────────────
-// Replaces the theme's lime green ($conifer / #b5e853) with lnchat cyan.
-// Fixes the clipped h1 left-margin and polishes tables, code, and blockquotes.
+// ── lnchat × Modernist ────────────────────────────────────────────────────
+// Modernist uses a card layout (.wrapper) with a light body.
+// We keep the clean card structure but replace its blue/grey palette
+// with lnchat's cyan and darken the header chrome.
 
-$cyan:       #36cfc9;
-$cyan-dim:   #0097a7;
-$cyan-dark:  #006064;
-$cyan-glow:  rgba(54, 207, 201, 0.4);
+$cyan:      #36cfc9;
+$cyan-mid:  #0097a7;
+$cyan-dark: #006064;
 
-// ── Header ─────────────────────────────────────────────────────────────────
+// ── Page chrome — outer background ───────────────────────────────────────
+
+html {
+  background: #1a2025;
+  background: linear-gradient(160deg, #0d1b1e, #1a2a2f) fixed;
+}
+
+// ── Card wrapper ──────────────────────────────────────────────────────────
+
+.wrapper {
+  background: #fff;
+  box-shadow: rgba(0, 0, 0, 0.35) 0 0 0 1px, rgba(0, 0, 0, 0.55) 0 4px 18px;
+}
+
+// ── Header ────────────────────────────────────────────────────────────────
 
 header {
-  border-bottom: 1px dashed $cyan;
+  background: #0a1f22;
+  background: linear-gradient(135deg, #0a1f22, #0d2d33);
+  border-bottom: 2px solid $cyan-mid;
 
   h1 {
-    margin-left: 0;           // fix the default -40px that clips the title
     color: $cyan;
-    text-shadow:
-      0 1px 1px rgba(0, 0, 0, 0.2),
-      0 0 6px $cyan-glow,
-      0 0 14px $cyan-glow;
+    text-shadow: 0 0 12px rgba(54, 207, 201, 0.35);
+    font-size: 22px;
   }
 
-  h2 {
-    color: #8ee3df;
+  p {
+    color: #6dcece;
+    width: auto;
+  }
+
+  a {
+    color: $cyan;
+    &:hover { color: #fff; }
+  }
+
+  // Download buttons
+  ul li a {
+    background: $cyan-mid;
+    background: linear-gradient($cyan, $cyan-mid);
+    border-radius: 4px;
+    color: #fff;
+    text-shadow: none;
+
+    &:hover {
+      background: linear-gradient($cyan-dark, $cyan-dark);
+    }
+
+    &:active {
+      background: $cyan-dark;
+    }
+
+    strong {
+      color: #fff;
+    }
   }
 }
 
-// ── Links ──────────────────────────────────────────────────────────────────
+// ── Body content ──────────────────────────────────────────────────────────
+
+section {
+  background: linear-gradient(#fff, #f5feff 600px);
+  color: #444;
+}
 
 a {
-  color: $cyan;
-  text-shadow: 0 0 5px $cyan-glow;
+  color: $cyan-mid;
 
   &:hover {
-    color: #fff;
-    text-shadow: 0 0 8px $cyan-glow;
+    color: $cyan-dark;
+    text-decoration: underline;
   }
 }
-
-// ── Headings ───────────────────────────────────────────────────────────────
 
 h1, h2, h3, h4, h5, h6 {
-  color: $cyan;
-  letter-spacing: -0.02em;
+  color: #1a3a3f;
 }
 
-// ── Inline code ────────────────────────────────────────────────────────────
+h2 {
+  border-bottom: 1px solid #c8eef0;
+  padding-bottom: 6px;
+}
+
+strong {
+  color: #1a3a3f;
+}
+
+// ── Code ─────────────────────────────────────────────────────────────────
 
 code {
-  color: $cyan;
+  background: #edf9fa;
+  border: 1px solid #b2e5e8;
+  color: $cyan-dark;
   border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 13px;
 }
 
-// ── Fenced code blocks ─────────────────────────────────────────────────────
-
 pre {
-  border: 1px solid $cyan-dim;
-  border-radius: 4px;
-  box-shadow: 0 0 10px rgba(0, 151, 167, 0.15);
+  background: #0d1b1e;
+  border: 1px solid $cyan-mid;
+  border-radius: 5px;
+  box-shadow: 0 0 12px rgba(0, 151, 167, 0.12);
+  padding: 14px 18px;
 
   code {
+    background: none;
+    border: none;
     color: #ccecea;
+    padding: 0;
+    font-size: 13px;
   }
 }
 
-// ── Blockquotes ────────────────────────────────────────────────────────────
-
-blockquote {
-  border-left: 2px solid $cyan-dim;
-  color: #8a9;
-  padding-left: 14px;
-}
-
-// ── Tables (README has several) ────────────────────────────────────────────
+// ── Tables ────────────────────────────────────────────────────────────────
 
 table {
   width: 100%;
-  border-collapse: collapse;
-  margin: 20px 0;
+  margin: 18px 0;
 
   th {
-    background: rgba(54, 207, 201, 0.12);
-    color: $cyan;
-    border: 1px solid $cyan-dim;
+    background: #e0f7f8;
+    color: $cyan-dark;
+    border-bottom: 2px solid $cyan-mid;
     padding: 8px 12px;
     text-align: left;
+    font-weight: 700;
   }
 
   td {
-    border: 1px solid #2a2a2a;
+    border-bottom: 1px solid #ddf0f2;
     padding: 7px 12px;
-    color: #c8c8c8;
+    color: #444;
   }
 
   tr:nth-child(even) td {
-    background: rgba(255, 255, 255, 0.03);
+    background: #f5fdfe;
   }
 }
 
-// ── Horizontal rule ────────────────────────────────────────────────────────
+// ── Blockquotes ──────────────────────────────────────────────────────────
+
+blockquote {
+  border-left: 3px solid $cyan;
+  color: #666;
+  background: #f5fdfe;
+  padding: 8px 14px;
+  margin-left: 0;
+  border-radius: 0 4px 4px 0;
+}
+
+// ── Horizontal rules ─────────────────────────────────────────────────────
 
 hr {
   border: none;
-  border-top: 1px dashed $cyan-dim;
-  margin: 30px 0;
+  border-top: 1px solid #c8eef0;
+  margin: 28px 0;
+}
+
+// ── Footer ────────────────────────────────────────────────────────────────
+
+footer {
+  background: #f0fbfc;
+  border-top: 1px solid #c8eef0;
+  color: #888;
+
+  a {
+    color: $cyan-mid;
+  }
 }
