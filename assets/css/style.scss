@@ -186,5 +186,5 @@ footer {
   }
 
   // Hide "Hosted on GitHub Pages — Theme by mattgraham"
-  p small { display: none; }
+  p:nth-child(2) { display: none; }
 }

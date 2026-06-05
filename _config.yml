@@ -1,4 +1,4 @@
 theme: jekyll-theme-modernist
 title: LnChat — Terminal messenger for your LAN
 description: Zero-config terminal messenger for LAN networks — no servers, no cloud, no setup.
-show_downloads: false
+show_downloads: true
