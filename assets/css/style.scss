@@ -113,9 +113,11 @@ code {
 
 pre {
   background: #0d1b1e;
-  border: 1px solid $cyan-mid;
-  border-radius: 5px;
-  box-shadow: 0 0 12px rgba(0, 151, 167, 0.12);
+  border: none;
+  border-left: 3px solid $cyan-mid;
+  border-right: 1px solid $cyan-mid;
+  border-radius: 0;
+  box-shadow: none;
   padding: 14px 18px;
 
   code {
@@ -175,11 +177,14 @@ hr {
 // ── Footer ────────────────────────────────────────────────────────────────
 
 footer {
-  background: #f0fbfc;
+  background: transparent;
   border-top: 1px solid #c8eef0;
   color: #888;
 
   a {
     color: $cyan-mid;
   }
+
+  // Hide "Hosted on GitHub Pages — Theme by mattgraham"
+  p small { display: none; }
 }
