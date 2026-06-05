@@ -49,24 +49,32 @@ header {
     &:hover { color: #fff; }
   }
 
-  // Download buttons
-  ul li a {
+  // Download / GitHub buttons — original Modernist layout, cyan recolour
+  ul {
     background: $cyan-mid;
-    background: linear-gradient($cyan, $cyan-mid);
-    border-radius: 4px;
-    color: #fff;
-    text-shadow: none;
+    background: linear-gradient(lighten($cyan, 8%), $cyan-mid);
+    box-shadow: inset rgba(#fff, 0.35) 0 1px 0, inset rgba(#000, 0.2) 0 -1px 0;
 
-    &:hover {
-      background: linear-gradient($cyan-dark, $cyan-dark);
+    &:before {
+      background: rgba(#000, 0.1);
+      box-shadow: rgba(#000, 0.2) 0 -1px 0, inset rgba(#fff, 0.5) 0 -1px 0;
     }
 
-    &:active {
-      background: $cyan-dark;
+    li {
+      border-right: 1px solid $cyan-dark;
     }
 
-    strong {
-      color: #fff;
+    li + li {
+      border-left: 1px solid lighten($cyan, 10%);
+    }
+
+    a {
+      color: rgba(#fff, 0.85);
+      text-shadow: rgba(#000, 0.3) 0 -1px 0;
+
+      &:hover { color: #fff; text-decoration: none; }
+
+      strong { color: #fff; }
     }
   }
 }
@@ -178,11 +186,14 @@ hr {
 
 footer {
   background: transparent;
-  border-top: 1px solid #c8eef0;
   color: #888;
 
   a {
     color: $cyan-mid;
+  }
+
+  p:nth-child(1) {
+    float: right;
   }
 
   // Hide "Hosted on GitHub Pages — Theme by mattgraham"
