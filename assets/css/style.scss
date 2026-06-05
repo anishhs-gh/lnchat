@@ -3,63 +3,110 @@
 
 @import "{{ site.theme }}";
 
-// ── lnchat color palette ───────────────────────────────────────────────────
-// Matches the terminal app: cyan accent, dark chrome, clean contrast.
+// ── lnchat × Hacker theme ──────────────────────────────────────────────────
+// Replaces the theme's lime green ($conifer / #b5e853) with lnchat cyan.
+// Fixes the clipped h1 left-margin and polishes tables, code, and blockquotes.
 
-// Header / sidebar gradient — replaces Leap Day's default green
+$cyan:       #36cfc9;
+$cyan-dim:   #0097a7;
+$cyan-dark:  #006064;
+$cyan-glow:  rgba(54, 207, 201, 0.4);
+
+// ── Header ─────────────────────────────────────────────────────────────────
+
 header {
-  background: linear-gradient(to bottom, #0097a7, #006064) !important;
-  border-bottom: 3px solid #36cfc9 !important;
+  border-bottom: 1px dashed $cyan;
 
   h1 {
-    color: #e0f7fa !important;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5) !important;
+    margin-left: 0;           // fix the default -40px that clips the title
+    color: $cyan;
+    text-shadow:
+      0 1px 1px rgba(0, 0, 0, 0.2),
+      0 0 6px $cyan-glow,
+      0 0 14px $cyan-glow;
   }
 
-  p {
-    color: #b2ebf2 !important;
-  }
-
-  a {
-    color: #80deea !important;
-    &:hover { color: #ffffff !important; }
-  }
-}
-
-// Main body links — cyan instead of green
-#content-wrapper {
-  a {
-    color: #0097a7;
-    &:hover { color: #006064; }
+  h2 {
+    color: #8ee3df;
   }
 }
 
-// Inline code — subtle dark background to echo the terminal feel
+// ── Links ──────────────────────────────────────────────────────────────────
+
+a {
+  color: $cyan;
+  text-shadow: 0 0 5px $cyan-glow;
+
+  &:hover {
+    color: #fff;
+    text-shadow: 0 0 8px $cyan-glow;
+  }
+}
+
+// ── Headings ───────────────────────────────────────────────────────────────
+
+h1, h2, h3, h4, h5, h6 {
+  color: $cyan;
+  letter-spacing: -0.02em;
+}
+
+// ── Inline code ────────────────────────────────────────────────────────────
+
 code {
-  background-color: #f0f9fa;
-  border: 1px solid #b2ebf2;
-  color: #006064;
+  color: $cyan;
+  border-radius: 3px;
 }
 
-// Fenced code blocks
+// ── Fenced code blocks ─────────────────────────────────────────────────────
+
 pre {
-  background-color: #1a1a2e;
-  border: 1px solid #36cfc9;
+  border: 1px solid $cyan-dim;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(0, 151, 167, 0.15);
+
   code {
-    background: none;
-    border: none;
-    color: #e0f7fa;
+    color: #ccecea;
   }
 }
 
-// Blockquotes — left border in cyan
+// ── Blockquotes ────────────────────────────────────────────────────────────
+
 blockquote {
-  border-left: 4px solid #36cfc9;
-  color: #555;
+  border-left: 2px solid $cyan-dim;
+  color: #8a9;
+  padding-left: 14px;
 }
 
-// Tables — header row tinted
-table th {
-  background-color: #e0f7fa;
-  color: #006064;
+// ── Tables (README has several) ────────────────────────────────────────────
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+
+  th {
+    background: rgba(54, 207, 201, 0.12);
+    color: $cyan;
+    border: 1px solid $cyan-dim;
+    padding: 8px 12px;
+    text-align: left;
+  }
+
+  td {
+    border: 1px solid #2a2a2a;
+    padding: 7px 12px;
+    color: #c8c8c8;
+  }
+
+  tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+
+// ── Horizontal rule ────────────────────────────────────────────────────────
+
+hr {
+  border: none;
+  border-top: 1px dashed $cyan-dim;
+  margin: 30px 0;
 }
