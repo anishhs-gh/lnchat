@@ -49,6 +49,12 @@ header {
     &:hover { color: #fff; }
   }
 
+  p.view a {
+    color: #80deea;
+    font-weight: 600;
+    &:hover { color: #fff; text-decoration: none; }
+  }
+
   // Download / GitHub buttons — original Modernist layout, cyan recolour
   ul {
     background: $cyan-mid;
@@ -198,4 +204,13 @@ footer {
 
   // Hide "Hosted on GitHub Pages — Theme by mattgraham"
   p:nth-child(2) { display: none; }
+}
+
+// ── Mobile ────────────────────────────────────────────────────────────────
+
+@media screen and (max-width: 740px) {
+  header {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
 }
