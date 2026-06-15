@@ -1,0 +1,20 @@
+{
+  "theme": "lumina",
+  "title": "lnchat",
+  "description": "Zero-config terminal messenger for devices on the same LAN.",
+  "color": "sky",
+  "darkMode": "auto",
+  "root": "README.md",
+  "hero": {
+    "title": "lnchat",
+    "description": "Zero-config terminal messenger for devices on the same LAN. No servers. No cloud. No accounts. Just run it.",
+    "githubUrl": "https://github.com/anishhs-gh/lnchat",
+    "downloadUrl": "https://github.com/anishhs-gh/lnchat/archive/refs/heads/master.zip"
+  },
+  "nav": [
+    { "label": "Home",        "file": "README.md" },
+    { "label": "Changelog",   "file": "CHANGELOG.md" },
+    { "label": "Contributing","file": "CONTRIBUTING.md" },
+    { "label": "GitHub", "url": "https://github.com/anishhs-gh/lnchat", "external": true }
+  ]
+}
