@@ -10,6 +10,7 @@ const readline = require('readline');
 const { resolveProfile, listProfiles, removeProfile, certFingerprint, factoryReset, saveProfile, loadProfile } = require('./utils/profile');
 const { deriveSpaceToken } = require('./utils/space');
 const FileTransferManager = require('./cli/fileTransferManager');
+const CallManager         = require('./voice/callManager');
 const KnownPeers     = require('./utils/knownPeers');
 const MessageHistory = require('./utils/messageHistory');
 const { getLocalIPs } = require('./utils/network');
@@ -277,10 +278,23 @@ async function main() {
   tcpServer.onFileResume        = (msg) => fileManager.onFileResume(msg);
   tcpServer.onFileResumeRequest = (msg) => fileManager.onFileResumeRequest(msg);
 
+  // ── Call manager ──────────────────────────────────────────────────────────
+  const callManager = new CallManager(
+    peerStore, deviceId, nickname, discriminator, ui, cert, key, fingerprint
+  );
+
+  // Wire all call-signaling control messages from TCPServer → CallManager
+  tcpServer.onCallOffer  = (msg) => callManager.onCallOffer(msg);
+  tcpServer.onCallAccept = (msg) => callManager.onCallAccept(msg);
+  tcpServer.onCallReject = (msg) => callManager.onCallReject(msg);
+  tcpServer.onCallBusy   = (msg) => callManager.onCallBusy(msg);
+  tcpServer.onCallEnd    = (msg) => callManager.onCallEnd(msg);
+
   // ── CLI input loop ────────────────────────────────────────────────────────
   commands = new Commands(peerStore, deviceId, nickname, discriminator, ui, history, notifyState);
 
   commands.fileManager = fileManager;
+  commands.callManager = callManager;
 
   // Persist /downloads directory changes back to the profile JSON
   commands._onDownloadsDirChange = (newDir) => {
@@ -302,6 +316,7 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     fileManager.cancelAll();   // notify peers before discovery stops
+    callManager.cancelAll();   // end any active call before discovery stops
     broadcaster.stop();
     listener.stop();
     tcpServer.stop();

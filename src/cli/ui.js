@@ -4,7 +4,7 @@ const readline = require('readline');
 
 // Commands whose first argument is a peer nickname — only these get the
 // bold-yellow nickname highlight in the input field.
-const NICK_COMMANDS = new Set(['/msg', '/focus', '/ping', '/history', '/share']);
+const NICK_COMMANDS = new Set(['/msg', '/focus', '/ping', '/history', '/share', '/call']);
 
 // Return a colored version of a slash-command input line:
 //   /command              → cyan

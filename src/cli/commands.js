@@ -29,6 +29,14 @@ File transfer:
   /resume [id]           Resume paused transfer
   /transfers             Show all active, queued, and pending transfers
   /downloads [path]      Show or set the download directory
+
+Voice calls:
+  /call <name>           Start a voice call with a peer
+  /answer                Answer an incoming call
+  /reject                Decline an incoming call
+  /mute                  Toggle your microphone during a call
+  /echo                  Toggle acoustic echo cancellation (on by default)
+  /hangup                End the current call
 `.trim();
 
 class Commands {
@@ -47,6 +55,7 @@ class Commands {
     this._lastTypingSent       = 0;     // debounce timestamp for outgoing TYPING packets
     this._stopTypingTimer      = null;  // fires STOP_TYPING after 3s of no keypresses
     this.fileManager           = null;  // set by index.js after construction
+    this.callManager           = null;  // set by index.js after construction
     this._onDownloadsDirChange = null;  // set by index.js to persist changes to profile
 
     // Send typing indicators to the focused peer on keypress
@@ -102,8 +111,23 @@ class Commands {
       await this._share(trimmed.slice(6).trim());
     } else if (trimmed.startsWith('/accept')) {
       await this._accept(trimmed.slice(7).trim());
+    } else if (trimmed.startsWith('/call ') || trimmed === '/call') {
+      await this._call(trimmed.slice(5).trim());
+    } else if (trimmed === '/answer') {
+      if (this.callManager) this.callManager.answer();
+    } else if (trimmed === '/hangup') {
+      if (this.callManager) this.callManager.hangup();
+    } else if (trimmed === '/mute') {
+      if (this.callManager) this.callManager.toggleMute();
+    } else if (trimmed === '/echo') {
+      if (this.callManager) this.callManager.toggleEcho();
     } else if (trimmed.startsWith('/reject')) {
-      this._reject(trimmed.slice(7).trim());
+      // A ringing call takes priority over a pending file offer.
+      if (this.callManager && this.callManager.hasIncomingCall()) {
+        this.callManager.reject();
+      } else {
+        this._reject(trimmed.slice(7).trim());
+      }
     } else if (trimmed.startsWith('/cancel')) {
       this._cancel(trimmed.slice(7).trim());
     } else if (trimmed.startsWith('/pause')) {
@@ -130,6 +154,7 @@ class Commands {
       this.ui.setPrompt('> ');
     }
     if (this.fileManager) this.fileManager.peerLeft(peer);
+    if (this.callManager) this.callManager.peerLeft(peer);
   }
 
   // ── /list ────────────────────────────────────────────────────────────────────
@@ -408,6 +433,19 @@ class Commands {
     this.fileManager.setDownloadsDir(resolved);
     this.ui.print(logger.system(`Downloads directory set to: ${resolved}`));
     if (this._onDownloadsDirChange) await this._onDownloadsDirChange(resolved);
+  }
+
+  // ── /call ────────────────────────────────────────────────────────────────────
+
+  async _call(name) {
+    if (!name) {
+      this.ui.print(logger.warn('Usage: /call <nickname>'));
+      return;
+    }
+    if (!this.callManager) return;
+    const peer = this._resolvePeer(name);
+    if (!peer) return;
+    await this.callManager.placeCall(peer);
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────────

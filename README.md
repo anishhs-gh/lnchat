@@ -18,6 +18,7 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Authenticated peers** — every discovery packet is signed with Ed25519; forged or replayed HELLOs are rejected
 - **Trust On First Use (TOFU)** — the first public key seen for a device is trusted; a changed key triggers a security warning
 - **File transfer** — send any file peer-to-peer with `/share`; receiver accepts or rejects; pause, resume, and cancel supported at any point
+- **Voice calls** — call a peer with `/call`; real-time audio over encrypted UDP (AES-256-GCM), with a built-in acoustic echo canceller so it works without headphones
 - **Focused chat** — `/focus` locks onto one peer so you can type freely without prefixing every message
 - **Broadcast** — `/all` sends a message to every online peer in one command
 - **Typing indicators** — a live "● Alice is typing..." line appears and disappears in real time
@@ -26,7 +27,7 @@ No servers. No cloud. No accounts. No setup. Just run it.
 - **Spaces** — `--space <name>` isolates a group of peers so only same-space instances discover each other
 - **Multiple profiles** — run different identities simultaneously with `--profile`
 - **Input syntax highlighting** — slash commands are coloured cyan, peer names bold-yellow, as you type; gracefully handles long paths that exceed the terminal width
-- **No runtime dependencies** — ships as a single self-contained JS file (~70 kB)
+- **Tiny footprint** — chat and file transfer ship as a single self-contained JS file (~90 kB) with no runtime dependencies; voice calls use one optional native audio module (see below)
 
 ---
 
@@ -111,6 +112,17 @@ When another lnchat instance appears on the network:
 | `/resume [id]` | Resume a paused transfer |
 | `/transfers` | List all active, queued, and pending transfers |
 | `/downloads [path]` | Show or change the download directory (default: `~/Downloads`) |
+
+**Voice calls**
+
+| Command | Description |
+|---|---|
+| `/call <name[#disc]>` | Start a voice call with a peer |
+| `/answer` | Answer an incoming call |
+| `/reject` | Decline an incoming call |
+| `/mute` | Toggle your microphone during a call |
+| `/echo` | Toggle acoustic echo cancellation (on by default) |
+| `/hangup` | End the current call |
 
 ### Sending messages
 
@@ -211,6 +223,35 @@ Change where received files are saved (persisted to your profile):
 > /downloads ~/Documents/lnchat-files
   ℹ  Downloads directory set to: /Users/anish/Documents/lnchat-files
 ```
+
+### Voice calls
+
+Call a peer with `/call`:
+
+```
+> /call Rahul
+📞 Calling Rahul#c2d9… ringing
+✔ Connected to Rahul#c2d9. /hangup to end.
+♪ Audio connected with Rahul#c2d9.
+● In call with Rahul#c2d9 — 00:42 ♪
+```
+
+On Rahul's side:
+
+```
+📞 Incoming call from anish#3fa1.  /answer  or  /reject
+
+> /answer
+✔ Connected to anish#3fa1. /hangup to end.
+```
+
+During a call, `/mute` toggles your microphone (the status line shows `[muted]`) and `/hangup` ends it. A live timer and a `♪` marker (shown while audio is flowing) sit above the prompt.
+
+**How it works.** Call setup (offer / answer / hang-up) rides the same TLS, fingerprint-pinned control channel as chat. The audio itself streams over a separate **UDP** channel, with every 10 ms frame encrypted using **AES-256-GCM** under a key exchanged during setup — low latency, and a lost packet is a brief blip rather than a stall (UDP, with a jitter buffer that reorders and conceals).
+
+**Echo cancellation.** A built-in acoustic echo canceller (a frequency-domain adaptive filter) removes the far end's voice leaking from your speaker back into your mic, so **calls work without headphones**. Toggle it with `/echo` if you prefer headphones. Note that echo cancellation can never be perfect on every device — if you hear echo, headphones always fix it.
+
+**Requirements.** Voice needs microphone/speaker access, which Node cannot do on its own, so calls use one **optional** native module, [`naudiodon2`](https://www.npmjs.com/package/naudiodon2) (PortAudio). It installs automatically via prebuilt binaries on macOS (Intel/Apple Silicon), Windows (x64), and Linux (x64). **If it can't install on your platform, lnchat still works fully for chat and file transfer** — only `/call` is disabled, with a clear message. The first call may prompt for microphone permission (grant it to your terminal).
 
 ### Typing indicators
 
@@ -423,6 +464,8 @@ A persistent UUID is generated once per profile and stored in `~/.lnchat/profile
 - `ufw`: `sudo ufw allow 41234:41238/udp && sudo ufw allow 9000:9009/tcp`
 - `iptables`: `iptables -A INPUT -p udp --dport 41234:41238 -j ACCEPT && iptables -A INPUT -p tcp --dport 9000:9009 -j ACCEPT`
 - lnchat tries ports 9000–9009 in order; the actual bound port is shown at startup. Use `--port <n>` to pin a specific port.
+
+**Voice calls** use a separate, OS-assigned **UDP** port per call (not in the ranges above). If a call connects but you hear nothing — and lnchat warns that no audio is arriving — a firewall is most likely dropping that UDP traffic; allow `node`/lnchat to send and receive UDP on **both** machines. One-way audio (you hear them, they don't hear you) almost always means the firewall on the silent side is blocking inbound UDP.
 
 ---
 

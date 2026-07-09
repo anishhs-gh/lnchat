@@ -10,6 +10,38 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [3.0.0] — 2026-06-28
+
+### Added
+
+#### Voice calls
+- `/call <name[#disc]>` — start a peer-to-peer voice call
+- `/answer` / `/reject` — accept or decline an incoming call (a ringing call takes priority over a pending file offer for `/reject`)
+- `/mute` — toggle the microphone mid-call; the in-call status line shows `[muted]`
+- `/hangup` — end the current call (also cancels a ringing/outgoing one)
+- `/echo` — toggle acoustic echo cancellation (on by default)
+- In-call status line above the prompt with a live timer and a `♪` marker shown while audio is flowing
+- Ring indication, busy signal when a peer is already on a call, 30-second no-answer timeout, and glare detection when two peers dial each other at once
+- Calls tear down automatically when the peer goes offline
+
+#### Voice internals
+- Call signaling (`CALL_OFFER` / `CALL_ACCEPT` / `CALL_REJECT` / `CALL_BUSY` / `CALL_END`) rides the existing TLS, fingerprint-pinned control channel
+- Media streams over a dedicated **UDP** channel; every 10 ms PCM frame is encrypted with **AES-256-GCM** under a key exchanged during call setup (pure-JS `dgram` + `crypto`, no extra dependency)
+- Jitter buffer that reorders out-of-order frames, prebuffers to absorb network jitter, and conceals lost packets with silence instead of stalling
+- Built-in **acoustic echo canceller** — a frequency-domain (partitioned-block NLMS) adaptive filter with double-talk freeze and residual-echo suppression, so calls work without headphones (~30 dB echo reduction on a linear echo in tests)
+- 10 ms frames keep UDP packets under the Ethernet/Wi-Fi MTU to avoid IP fragmentation
+- Audio I/O uses the **optional** native module `naudiodon2` (PortAudio), lazy-loaded only when a call starts
+
+### Changed
+- `naudiodon2` is an `optionalDependency`: if it can't install on a platform, lnchat still runs fully for chat and file transfer — only `/call` is disabled, with a clear message
+- Build marks `naudiodon2` as external so the single-file bundle is unaffected
+
+### Notes
+- Voice needs microphone/speaker access; the first call may prompt for OS microphone permission
+- Each call uses a separate OS-assigned UDP port — allow `node`/lnchat through the firewall on both machines if audio doesn't arrive
+
+---
+
 ## [2.0.0] — 2026-06-03
 
 ### Added

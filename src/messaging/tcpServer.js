@@ -23,6 +23,11 @@ class TCPServer {
     this.onFilePause          = null;
     this.onFileResume         = null;
     this.onFileResumeRequest  = null;
+    this.onCallOffer          = null;
+    this.onCallAccept         = null;
+    this.onCallReject         = null;
+    this.onCallBusy           = null;
+    this.onCallEnd            = null;
     this._server              = null;
   }
 
@@ -121,6 +126,12 @@ class TCPServer {
     if (msg.type === 'FILE_PAUSE'          && this.onFilePause)         { this.onFilePause(msg);         return; }
     if (msg.type === 'FILE_RESUME'         && this.onFileResume)        { this.onFileResume(msg);        return; }
     if (msg.type === 'FILE_RESUME_REQUEST' && this.onFileResumeRequest) { this.onFileResumeRequest(msg); return; }
+
+    if (msg.type === 'CALL_OFFER'  && this.onCallOffer)  { this.onCallOffer(msg);  return; }
+    if (msg.type === 'CALL_ACCEPT' && this.onCallAccept) { this.onCallAccept(msg); return; }
+    if (msg.type === 'CALL_REJECT' && this.onCallReject) { this.onCallReject(msg); return; }
+    if (msg.type === 'CALL_BUSY'   && this.onCallBusy)   { this.onCallBusy(msg);   return; }
+    if (msg.type === 'CALL_END'    && this.onCallEnd)    { this.onCallEnd(msg);    return; }
   }
 
   stop() {
